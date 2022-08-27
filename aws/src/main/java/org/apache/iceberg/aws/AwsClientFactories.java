@@ -97,7 +97,7 @@ public class AwsClientFactories {
     private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
-    private Boolean s3DualStackEnabled;
+    private Boolean clientDualStackEnabled;
 
     DefaultAwsClientFactory() {}
 
@@ -106,7 +106,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .dualstackEnabled(s3DualStackEnabled)
+          .dualstackEnabled(clientDualStackEnabled)
           .serviceConfiguration(
               S3Configuration.builder()
                   .pathStyleAccessEnabled(s3PathStyleAccess)
@@ -123,6 +123,7 @@ public class AwsClientFactories {
       return GlueClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
+          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
@@ -130,6 +131,7 @@ public class AwsClientFactories {
     public KmsClient kms() {
       return KmsClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
@@ -138,6 +140,7 @@ public class AwsClientFactories {
       return DynamoDbClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
+          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
@@ -163,11 +166,11 @@ public class AwsClientFactories {
               properties,
               AwsProperties.S3_ACCELERATION_ENABLED,
               AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
-      this.s3DualStackEnabled =
+      this.clientDualStackEnabled =
           PropertyUtil.propertyAsBoolean(
               properties,
-              AwsProperties.S3_DUALSTACK_ENABLED,
-              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
+              AwsProperties.CLIENT_DUALSTACK_ENABLED,
+              AwsProperties.CLIENT_DUALSTACK_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
