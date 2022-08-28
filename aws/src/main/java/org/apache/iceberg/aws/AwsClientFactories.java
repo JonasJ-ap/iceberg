@@ -137,7 +137,6 @@ public class AwsClientFactories {
       return GlueClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
-          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
