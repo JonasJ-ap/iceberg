@@ -99,23 +99,23 @@ public class AwsClientFactories {
     private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
-    private Boolean clientDualStackEnabled;
+    private Boolean s3DualStackEnabled;
 
-    private static Logger log = LoggerFactory.getLogger(DefaultAwsClientFactory.class);
+    private static Logger logger = LoggerFactory.getLogger(DefaultAwsClientFactory.class);
 
     DefaultAwsClientFactory() {}
 
     @Override
     public S3Client s3() {
-      if (clientDualStackEnabled) {
-        log.info("The s3 dual stack is enabled");
+      if (s3DualStackEnabled) {
+        logger.info("The S3 dual stack is enabled");
       } else {
-        log.info("The s3 dual stack is disabled");
+        logger.info("The S3 dual stack is disabled");
       }
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .dualstackEnabled(clientDualStackEnabled)
+          .dualstackEnabled(s3DualStackEnabled)
           .serviceConfiguration(
               S3Configuration.builder()
                   .pathStyleAccessEnabled(s3PathStyleAccess)
@@ -129,11 +129,6 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      if (clientDualStackEnabled) {
-        log.info("The glue dual stack is enabled");
-      } else {
-        log.info("The glue dual stack is disabled");
-      }
       return GlueClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
@@ -142,28 +137,16 @@ public class AwsClientFactories {
 
     @Override
     public KmsClient kms() {
-      if (clientDualStackEnabled) {
-        log.info("The kms dual stack is enabled");
-      } else {
-        log.info("The kms dual stack is disabled");
-      }
       return KmsClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      if (clientDualStackEnabled) {
-        log.info("The dynamo dual stack is enabled");
-      } else {
-        log.info("The dynamo dual stack is disabled");
-      }
       return DynamoDbClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
-          .dualstackEnabled(clientDualStackEnabled)
           .build();
     }
 
@@ -189,11 +172,11 @@ public class AwsClientFactories {
               properties,
               AwsProperties.S3_ACCELERATION_ENABLED,
               AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
-      this.clientDualStackEnabled =
+      this.s3DualStackEnabled =
           PropertyUtil.propertyAsBoolean(
               properties,
-              AwsProperties.CLIENT_DUALSTACK_ENABLED,
-              AwsProperties.CLIENT_DUALSTACK_ENABLED_DEFAULT);
+              AwsProperties.S3_DUALSTACK_ENABLED,
+              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),

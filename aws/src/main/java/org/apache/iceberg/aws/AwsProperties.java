@@ -313,14 +313,14 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
-   * Determines if all AWS clients will use the Dualstack Mode, default to false.
+   * Determines if S3 clients will use the Dualstack Mode, default to false.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
    */
-  public static final String CLIENT_DUALSTACK_ENABLED = "client.dualstack-enabled";
+  public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
 
-  public static final boolean CLIENT_DUALSTACK_ENABLED_DEFAULT = false;
+  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
