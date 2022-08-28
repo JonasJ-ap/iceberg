@@ -24,6 +24,8 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -99,10 +101,17 @@ public class AwsClientFactories {
     private String httpClientType;
     private Boolean clientDualStackEnabled;
 
+    private static Logger log = LoggerFactory.getLogger(DefaultAwsClientFactory.class);
+
     DefaultAwsClientFactory() {}
 
     @Override
     public S3Client s3() {
+      if (clientDualStackEnabled) {
+        log.info("The s3 dual stack is enabled");
+      } else {
+        log.info("The s3 dual stack is disabled");
+      }
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
@@ -120,6 +129,11 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
+      if (clientDualStackEnabled) {
+        log.info("The glue dual stack is enabled");
+      } else {
+        log.info("The glue dual stack is disabled");
+      }
       return GlueClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
@@ -129,6 +143,11 @@ public class AwsClientFactories {
 
     @Override
     public KmsClient kms() {
+      if (clientDualStackEnabled) {
+        log.info("The kms dual stack is enabled");
+      } else {
+        log.info("The kms dual stack is disabled");
+      }
       return KmsClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .dualstackEnabled(clientDualStackEnabled)
@@ -137,6 +156,11 @@ public class AwsClientFactories {
 
     @Override
     public DynamoDbClient dynamo() {
+      if (clientDualStackEnabled) {
+        log.info("The dynamo dual stack is enabled");
+      } else {
+        log.info("The dynamo dual stack is disabled");
+      }
       return DynamoDbClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
