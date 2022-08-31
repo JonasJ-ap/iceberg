@@ -29,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -734,5 +736,37 @@ public class AwsProperties implements Serializable {
 
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
+  }
+
+  public static <T extends S3ClientBuilder> void applyS3Properties(
+      T builder, Map<String, String> properties) {
+    boolean s3PathStyleAccess =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
+            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
+    boolean s3UseArnRegionEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+    boolean s3AccelerationEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_ACCELERATION_ENABLED,
+            AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
+    boolean s3DualStackEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_DUALSTACK_ENABLED,
+            AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
+    builder
+        .dualstackEnabled(s3DualStackEnabled)
+        .serviceConfiguration(
+            S3Configuration.builder()
+                .pathStyleAccessEnabled(s3PathStyleAccess)
+                .useArnRegionEnabled(s3UseArnRegionEnabled)
+                .accelerateModeEnabled(s3AccelerationEnabled)
+                .build());
   }
 }
