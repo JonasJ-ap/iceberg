@@ -98,7 +98,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .applyMutation(awsProperties::applyHttpClientConfiguration)
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
-          .applyMutation(awsProperties::applyS3ServiceConfigurations)
+          .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
