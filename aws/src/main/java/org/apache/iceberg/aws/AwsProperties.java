@@ -331,14 +331,6 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
-   * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
-   *
-   * <p>For more details, see
-   * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname
-   */
-  public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
-
-  /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
@@ -371,16 +363,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
-      "client.apache-http.connection-timeout-ms";
-
-  /**
-   * Default Apache Http Client connection timeout value indicates that we do not set the connection
-   * timeout value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
-   *
-   * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
-   */
-  public static final long APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT = -1;
+          "client.apache-http.connection-timeout-ms";
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -391,16 +374,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS =
-      "client.apache-http.socket-timeout-ms";
-
-  /**
-   * Default Apache Http Client socket timeout value indicates that we do not set the socket timeout
-   * value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
-   *
-   * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
-   */
-  public static final long APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT = -1;
+          "client.apache-http.socket-timeout-ms";
 
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
@@ -492,15 +466,14 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
-  private long apacheHttpClientConnectionTimeout;
-  private long apacheHttpClientSocketTimeout;
+  private Long apacheHttpClientConnectionTimeout;
+  private Long apacheHttpClientSocketTimeout;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
   private String clientAssumeRoleExternalId;
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
-  private String clientAssumeRoleSessionName;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -538,15 +511,14 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.apacheHttpClientConnectionTimeout = APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
-    this.apacheHttpClientSocketTimeout = APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
+    this.apacheHttpClientConnectionTimeout = null;
+    this.apacheHttpClientSocketTimeout = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
     this.clientAssumeRoleTimeoutSec = CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT;
     this.clientAssumeRoleExternalId = null;
     this.clientAssumeRoleRegion = null;
-    this.clientAssumeRoleSessionName = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -584,32 +556,25 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
 
     ValidationException.check(
-        s3KeyIdAccessKeyBothConfigured(),
-        "S3 client access key ID and secret access key must be set at the same time");
+            s3KeyIdAccessKeyBothConfigured(),
+            "S3 client access key ID and secret access key must be set at the same time");
   }
 
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
-        PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+            PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.apacheHttpClientConnectionTimeout =
-        PropertyUtil.propertyAsLong(
-            properties,
-            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS,
-            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT);
+            PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, null);
     this.apacheHttpClientSocketTimeout =
-        PropertyUtil.propertyAsLong(
-            properties,
-            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS,
-            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT);
+            PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, null);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
-        PropertyUtil.propertyAsInt(
-            properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
+            PropertyUtil.propertyAsInt(
+                    properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
-    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -619,109 +584,109 @@ public class AwsProperties implements Serializable {
     this.s3SessionToken = properties.get(S3FILEIO_SESSION_TOKEN);
     if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
-          s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
+              s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
       Preconditions.checkNotNull(
-          s3FileIoSseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
+              s3FileIoSseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
     this.s3Endpoint = properties.get(S3FILEIO_ENDPOINT);
 
     this.glueEndpoint = properties.get(GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive =
-        PropertyUtil.propertyAsBoolean(
-            properties, GLUE_CATALOG_SKIP_ARCHIVE, GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, GLUE_CATALOG_SKIP_ARCHIVE, GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
     this.glueCatalogSkipNameValidation =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            GLUE_CATALOG_SKIP_NAME_VALIDATION,
-            GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties,
+                    GLUE_CATALOG_SKIP_NAME_VALIDATION,
+                    GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT);
     this.glueLakeFormationEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
 
     this.s3FileIoMultipartUploadThreads =
-        PropertyUtil.propertyAsInt(
-            properties,
-            S3FILEIO_MULTIPART_UPLOAD_THREADS,
-            Runtime.getRuntime().availableProcessors());
+            PropertyUtil.propertyAsInt(
+                    properties,
+                    S3FILEIO_MULTIPART_UPLOAD_THREADS,
+                    Runtime.getRuntime().availableProcessors());
     this.s3PathStyleAccess =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3FILEIO_PATH_STYLE_ACCESS, S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3FILEIO_PATH_STYLE_ACCESS, S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
     this.s3UseArnRegionEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3_USE_ARN_REGION_ENABLED, S3_USE_ARN_REGION_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3_USE_ARN_REGION_ENABLED, S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.s3AccelerationEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3_ACCELERATION_ENABLED, S3_ACCELERATION_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3_ACCELERATION_ENABLED, S3_ACCELERATION_ENABLED_DEFAULT);
     this.s3DualStackEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3_DUALSTACK_ENABLED, S3_DUALSTACK_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3_DUALSTACK_ENABLED, S3_DUALSTACK_ENABLED_DEFAULT);
 
     try {
       this.s3FileIoMultiPartSize =
-          PropertyUtil.propertyAsInt(
-              properties, S3FILEIO_MULTIPART_SIZE, S3FILEIO_MULTIPART_SIZE_DEFAULT);
+              PropertyUtil.propertyAsInt(
+                      properties, S3FILEIO_MULTIPART_SIZE, S3FILEIO_MULTIPART_SIZE_DEFAULT);
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException(
-          "Input malformed or exceeded maximum multipart upload size 5GB: %s"
-              + properties.get(S3FILEIO_MULTIPART_SIZE));
+              "Input malformed or exceeded maximum multipart upload size 5GB: %s"
+                      + properties.get(S3FILEIO_MULTIPART_SIZE));
     }
 
     this.s3FileIoMultipartThresholdFactor =
-        PropertyUtil.propertyAsDouble(
-            properties,
-            S3FILEIO_MULTIPART_THRESHOLD_FACTOR,
-            S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
+            PropertyUtil.propertyAsDouble(
+                    properties,
+                    S3FILEIO_MULTIPART_THRESHOLD_FACTOR,
+                    S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
 
     Preconditions.checkArgument(
-        s3FileIoMultipartThresholdFactor >= 1.0, "Multipart threshold factor must be >= to 1.0");
+            s3FileIoMultipartThresholdFactor >= 1.0, "Multipart threshold factor must be >= to 1.0");
 
     Preconditions.checkArgument(
-        s3FileIoMultiPartSize >= S3FILEIO_MULTIPART_SIZE_MIN,
-        "Minimum multipart upload object size must be larger than 5 MB.");
+            s3FileIoMultiPartSize >= S3FILEIO_MULTIPART_SIZE_MIN,
+            "Minimum multipart upload object size must be larger than 5 MB.");
 
     this.s3fileIoStagingDirectory =
-        PropertyUtil.propertyAsString(
-            properties, S3FILEIO_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+            PropertyUtil.propertyAsString(
+                    properties, S3FILEIO_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
 
     String aclType = properties.get(S3FILEIO_ACL);
     this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
     Preconditions.checkArgument(
-        s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
-        "Cannot support S3 CannedACL " + aclType);
+            s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
+            "Cannot support S3 CannedACL " + aclType);
 
     this.isS3ChecksumEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3_CHECKSUM_ENABLED, S3_CHECKSUM_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3_CHECKSUM_ENABLED, S3_CHECKSUM_ENABLED_DEFAULT);
 
     this.s3FileIoDeleteBatchSize =
-        PropertyUtil.propertyAsInt(
-            properties, S3FILEIO_DELETE_BATCH_SIZE, S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
+            PropertyUtil.propertyAsInt(
+                    properties, S3FILEIO_DELETE_BATCH_SIZE, S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
     Preconditions.checkArgument(
-        s3FileIoDeleteBatchSize > 0 && s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
-        String.format(
-            "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
+            s3FileIoDeleteBatchSize > 0 && s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
+            String.format(
+                    "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
     this.s3DeleteTags = toS3Tags(properties, S3_DELETE_TAGS_PREFIX);
     this.s3FileIoDeleteThreads =
-        PropertyUtil.propertyAsInt(
-            properties, S3FILEIO_DELETE_THREADS, Runtime.getRuntime().availableProcessors());
+            PropertyUtil.propertyAsInt(
+                    properties, S3FILEIO_DELETE_THREADS, Runtime.getRuntime().availableProcessors());
     this.isS3DeleteEnabled =
-        PropertyUtil.propertyAsBoolean(properties, S3_DELETE_ENABLED, S3_DELETE_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(properties, S3_DELETE_ENABLED, S3_DELETE_ENABLED_DEFAULT);
     this.s3BucketToAccessPointMapping =
-        PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
+            PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
     this.s3PreloadClientEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, S3_PRELOAD_CLIENT_ENABLED, S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
+            PropertyUtil.propertyAsBoolean(
+                    properties, S3_PRELOAD_CLIENT_ENABLED, S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
-        PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+            PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
 
     ValidationException.check(
-        s3KeyIdAccessKeyBothConfigured(),
-        "S3 client access key ID and secret access key must be set at the same time");
+            s3KeyIdAccessKeyBothConfigured(),
+            "S3 client access key ID and secret access key must be set at the same time");
   }
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
@@ -742,10 +707,6 @@ public class AwsProperties implements Serializable {
 
   public String clientAssumeRoleRegion() {
     return clientAssumeRoleRegion;
-  }
-
-  public String clientAssumeRoleSessionName() {
-    return clientAssumeRoleSessionName;
   }
 
   public String s3FileIoSseType() {
@@ -915,7 +876,7 @@ public class AwsProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
-        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+            credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
 
   /**
@@ -930,13 +891,13 @@ public class AwsProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
-        .dualstackEnabled(s3DualStackEnabled)
-        .serviceConfiguration(
-            S3Configuration.builder()
-                .pathStyleAccessEnabled(s3PathStyleAccess)
-                .useArnRegionEnabled(s3UseArnRegionEnabled)
-                .accelerateModeEnabled(s3AccelerationEnabled)
-                .build());
+            .dualstackEnabled(s3DualStackEnabled)
+            .serviceConfiguration(
+                    S3Configuration.builder()
+                            .pathStyleAccessEnabled(s3PathStyleAccess)
+                            .useArnRegionEnabled(s3UseArnRegionEnabled)
+                            .accelerateModeEnabled(s3AccelerationEnabled)
+                            .build());
   }
 
   /**
@@ -959,7 +920,7 @@ public class AwsProperties implements Serializable {
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         builder.httpClientBuilder(
-            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
+                ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1007,20 +968,20 @@ public class AwsProperties implements Serializable {
 
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
-        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
-        .collect(Collectors.toSet());
+            .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+            .collect(Collectors.toSet());
   }
 
   private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
-      Map<String, String> properties, String prefix) {
+          Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
-        .map(
-            e ->
-                software.amazon.awssdk.services.sts.model.Tag.builder()
-                    .key(e.getKey())
-                    .value(e.getValue())
-                    .build())
-        .collect(Collectors.toSet());
+            .map(
+                    e ->
+                            software.amazon.awssdk.services.sts.model.Tag.builder()
+                                    .key(e.getKey())
+                                    .value(e.getValue())
+                                    .build())
+            .collect(Collectors.toSet());
   }
 
   private boolean s3KeyIdAccessKeyBothConfigured() {
@@ -1028,14 +989,14 @@ public class AwsProperties implements Serializable {
   }
 
   private AwsCredentialsProvider credentialsProvider(
-      String accessKeyId, String secretAccessKey, String sessionToken) {
+          String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {
       if (sessionToken == null) {
         return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+                AwsBasicCredentials.create(accessKeyId, secretAccessKey));
       } else {
         return StaticCredentialsProvider.create(
-            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
+                AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
       }
     } else {
       return DefaultCredentialsProvider.create();
@@ -1050,14 +1011,12 @@ public class AwsProperties implements Serializable {
 
   @VisibleForTesting
   protected <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    boolean setConnectionTimeout =
-        apacheHttpClientConnectionTimeout != APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
-    boolean setSocketTimeout =
-        apacheHttpClientSocketTimeout != APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
+    boolean setConnectionTimeout = apacheHttpClientConnectionTimeout != null;
+    boolean setSocketTimeout = apacheHttpClientSocketTimeout != null;
     if (setConnectionTimeout && setSocketTimeout) {
       builder
-          .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
-          .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
+              .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
+              .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
     } else if (setConnectionTimeout) {
       builder.connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
     } else if (setSocketTimeout) {
