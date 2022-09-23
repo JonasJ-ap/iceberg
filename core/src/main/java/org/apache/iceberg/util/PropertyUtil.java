@@ -66,7 +66,7 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static long propertyAsLong(
+  public static Long propertyAsLong(
           Map<String, String> properties, String property, Long defaultValue) {
     String value = properties.get(property);
     if (value != null) {
