@@ -331,6 +331,14 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname
+   */
+  public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
+
+  /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
@@ -474,6 +482,7 @@ public class AwsProperties implements Serializable {
   private String clientAssumeRoleExternalId;
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
+  private String clientAssumeRoleSessionName;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -514,6 +523,7 @@ public class AwsProperties implements Serializable {
     this.apacheHttpClientConnectionTimeout = null;
     this.apacheHttpClientSocketTimeout = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
+    this.clientAssumeRoleSessionName = null;
 
     this.clientAssumeRoleArn = null;
     this.clientAssumeRoleTimeoutSec = CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT;
@@ -568,6 +578,7 @@ public class AwsProperties implements Serializable {
     this.apacheHttpClientSocketTimeout =
         PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, null);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
+    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -707,6 +718,10 @@ public class AwsProperties implements Serializable {
 
   public String clientAssumeRoleRegion() {
     return clientAssumeRoleRegion;
+  }
+
+  public String clientAssumeRoleSessionName() {
+    return clientAssumeRoleSessionName;
   }
 
   public String s3FileIoSseType() {
