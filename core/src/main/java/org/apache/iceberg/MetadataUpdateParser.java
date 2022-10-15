@@ -444,7 +444,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {
-    Snapshot snapshot = SnapshotParser.fromJson(null, JsonUtil.get(SNAPSHOT, node));
+    Snapshot snapshot = SnapshotParser.fromJson(JsonUtil.get(SNAPSHOT, node));
     return new MetadataUpdate.AddSnapshot(snapshot);
   }
 
@@ -461,8 +461,7 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {
     String refName = JsonUtil.getString(REF_NAME, node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type =
-        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type = SnapshotRefType.fromString(JsonUtil.getString(TYPE, node));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);

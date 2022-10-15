@@ -39,6 +39,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Boolean propertyAsNullableBoolean(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+    return null;
+  }
+
   public static double propertyAsDouble(
       Map<String, String> properties, String property, double defaultValue) {
     String value = properties.get(property);
@@ -57,6 +65,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Integer propertyAsNullableInt(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Integer.parseInt(value);
+    }
+    return null;
+  }
+
   public static long propertyAsLong(
       Map<String, String> properties, String property, long defaultValue) {
     String value = properties.get(property);
@@ -64,6 +80,14 @@ public class PropertyUtil {
       return Long.parseLong(value);
     }
     return defaultValue;
+  }
+
+  public static Long propertyAsNullableLong(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Long.parseLong(value);
+    }
+    return null;
   }
 
   public static String propertyAsString(

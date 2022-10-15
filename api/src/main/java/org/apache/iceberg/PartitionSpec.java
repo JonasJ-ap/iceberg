@@ -67,10 +67,7 @@ public class PartitionSpec implements Serializable {
       Schema schema, int specId, List<PartitionField> fields, int lastAssignedFieldId) {
     this.schema = schema;
     this.specId = specId;
-    this.fields = new PartitionField[fields.size()];
-    for (int i = 0; i < this.fields.length; i += 1) {
-      this.fields[i] = fields.get(i);
-    }
+    this.fields = fields.toArray(new PartitionField[0]);
     this.lastAssignedFieldId = lastAssignedFieldId;
   }
 
@@ -555,17 +552,25 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
       Type sourceType = schema.findType(field.sourceId());
-      ValidationException.check(
-          sourceType != null, "Cannot find source column for partition field: %s", field);
-      ValidationException.check(
-          sourceType.isPrimitiveType(),
-          "Cannot partition by non-primitive source field: %s",
-          sourceType);
-      ValidationException.check(
-          field.transform().canTransform(sourceType),
-          "Invalid source type %s for transform: %s",
-          sourceType,
-          field.transform());
+      Transform<?, ?> transform = field.transform();
+      // In the case of a Version 1 partition-spec field gets deleted,
+      // it is replaced with a void transform, see:
+      // https://iceberg.apache.org/spec/#partition-transforms
+      // We don't care about the source type since a VoidTransform is always compatible and skip the
+      // checks
+      if (!transform.equals(Transforms.alwaysNull())) {
+        ValidationException.check(
+            sourceType != null, "Cannot find source column for partition field: %s", field);
+        ValidationException.check(
+            sourceType.isPrimitiveType(),
+            "Cannot partition by non-primitive source field: %s",
+            sourceType);
+        ValidationException.check(
+            transform.canTransform(sourceType),
+            "Invalid source type %s for transform: %s",
+            sourceType,
+            transform);
+      }
     }
   }
 
