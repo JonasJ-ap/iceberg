@@ -56,6 +56,7 @@ def test_create_table(table_schema_nested: Schema):
         identifier, table_schema_nested, f"s3://pythongluetest/myicebergtest.db/{table_name}"
     )
     assert table.identifier == identifier
+    GlueCatalog("glue").drop_table(identifier)
 
 
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
@@ -65,6 +66,7 @@ def test_create_table_with_default_location(table_schema_nested: Schema):
     test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest")
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
+    GlueCatalog("glue").drop_table(identifier)
 
 
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
