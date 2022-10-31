@@ -47,6 +47,10 @@ ICEBERG = "iceberg"
 TABLE_TYPE = "table_type"
 WAREHOUSE = "warehouse"
 METADATA_LOCATION = "metadata_location"
+MANIFEST = "manifest"
+MANIFEST_LIST = "manifest list"
+PREVIOUS_METADATA = "previous metadata"
+METADATA = "metadata"
 URI = "uri"
 
 
@@ -145,7 +149,7 @@ def load_catalog(name: str, **properties: str | None) -> Catalog:
     raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
 
 
-def _delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
+def delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
     for file in files_to_delete:
         try:
             io.delete(file)
@@ -153,7 +157,7 @@ def _delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None
             logger.warning(msg=f"Failed to delete {file_type} file {file}", exc_info=exc)
 
 
-def _delete_data_files(io: FileIO, manifests_to_delete: list[ManifestFile]) -> None:
+def delete_data_files(io: FileIO, manifests_to_delete: list[ManifestFile]) -> None:
     deleted_files: dict[str, bool] = {}
     for manifest_file in manifests_to_delete:
         for entry in manifest_file.fetch_manifest_entry(io):
