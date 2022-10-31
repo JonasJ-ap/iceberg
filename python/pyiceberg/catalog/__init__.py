@@ -41,11 +41,16 @@ logger = logging.getLogger(__name__)
 _ENV_CONFIG = Config()
 
 TYPE = "type"
+ICEBERG = "iceberg"
+TABLE_TYPE = "table_type"
+WAREHOUSE = "warehouse"
+METADATA_LOCATION = "metadata_location"
 
 
 class CatalogType(Enum):
     REST = "rest"
     HIVE = "hive"
+    GLUE = "glue"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -63,9 +68,19 @@ def load_hive(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("Apache Hive support not installed: pip install 'pyiceberg[hive]'") from exc
 
 
+def load_glue(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.glue import GlueCatalog
+
+        return GlueCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
+    CatalogType.GLUE: load_glue,
 }
 
 
@@ -135,13 +150,13 @@ class Catalog(ABC):
 
     @abstractmethod
     def create_table(
-        self,
-        identifier: str | Identifier,
-        schema: Schema,
-        location: str | None = None,
-        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-        sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Properties = EMPTY_DICT,
+            self,
+            identifier: str | Identifier,
+            schema: Schema,
+            location: str | None = None,
+            partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+            sort_order: SortOrder = UNSORTED_SORT_ORDER,
+            properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create a table
 
@@ -284,7 +299,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+            self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 
