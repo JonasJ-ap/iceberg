@@ -29,6 +29,8 @@ from typing import (
 )
 
 from pyiceberg.exceptions import NotInstalledError
+from pyiceberg.io import FileIO
+from pyiceberg.manifest import ManifestFile
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -81,7 +83,7 @@ def load_glue(name: str, conf: Properties) -> Catalog:
 
         return GlueCatalog(name, **conf)
     except ImportError as exc:
-        raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
+        raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue, s3fs]'") from exc
 
 
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
@@ -147,6 +149,27 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
         return AVAILABLE_CATALOGS[catalog_type](name, conf)
 
     raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
+
+
+def _delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
+    for file in files_to_delete:
+        try:
+            io.delete(file)
+        except OSError as exc:
+            logger.warning(msg=f"Failed to delete {file_type} file {file}", exc_info=exc)
+
+
+def _delete_data_files(io: FileIO, manifests_to_delete: list[ManifestFile]) -> None:
+    deleted_files: dict[str, bool] = {}
+    for manifest_file in manifests_to_delete:
+        for entry in manifest_file.fetch_manifest_entry(io):
+            path = entry.data_file.file_path
+            if not deleted_files.get(path, False):
+                try:
+                    io.delete(path)
+                except OSError as exc:
+                    logger.warning(msg=f"Failed to delete data file {path}", exc_info=exc)
+                deleted_files[path] = True
 
 
 @dataclass
