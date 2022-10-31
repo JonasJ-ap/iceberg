@@ -150,13 +150,13 @@ class Catalog(ABC):
 
     @abstractmethod
     def create_table(
-            self,
-            identifier: str | Identifier,
-            schema: Schema,
-            location: str | None = None,
-            partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-            sort_order: SortOrder = UNSORTED_SORT_ORDER,
-            properties: Properties = EMPTY_DICT,
+        self,
+        identifier: str | Identifier,
+        schema: Schema,
+        location: str | None = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create a table
 
@@ -299,7 +299,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-            self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 
