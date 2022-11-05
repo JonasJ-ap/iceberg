@@ -73,7 +73,7 @@ def fixture_glue_client():
     yield boto3.client("glue")
 
 
-def clean_up(test_catalog):
+def clean_up(test_catalog, s3):
     """Clean all databases and tables created during the integration test"""
     for database_name in test_catalog.list_namespaces():
         database_name = database_name[0]
@@ -82,13 +82,17 @@ def clean_up(test_catalog):
                 test_catalog.purge_table(identifier)
             test_catalog.drop_namespace(database_name)
 
+    remaining_objects = s3.list_objects_v2(Bucket=get_bucket_name(), Prefix="my_iceberg_database-")
+    to_delete_list = [{"Key": obj["Key"]} for obj in remaining_objects["Contents"]]
+    s3.delete_objects(Bucket=get_bucket_name(), Delete={"Objects": to_delete_list, "Quiet": True})
+
 
 @pytest.fixture(name="test_catalog", scope="module")
-def fixture_test_catalog():
+def fixture_test_catalog(s3):
     """The pre- and post-setting of aws integration test"""
     test_catalog = GlueCatalog("glue", warehouse=get_s3_path(get_bucket_name()))
     yield test_catalog
-    clean_up(test_catalog)
+    clean_up(test_catalog, s3)
 
 
 def test_create_table(test_catalog, s3, table_schema_nested: Schema):
