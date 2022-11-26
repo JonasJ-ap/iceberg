@@ -46,4 +46,4 @@ org.mock-server:mockserver-client-java = 5.13.2
 com.esotericsoftware:kryo = 4.0.2
 org.eclipse.jetty:* = 9.4.43.v20210629
 # TODO: update when Delta Lake 2.1.0 is officially out
-io.delta:delta-core_2.12 = 2.1.0rc1
+io.delta:delta-core_2.12 = 2.1.0
