@@ -45,5 +45,4 @@ org.springframework:* = 5.3.9
 org.springframework.boot:* = 2.5.4
 org.mock-server:mockserver-netty = 5.13.2
 org.mock-server:mockserver-client-java = 5.13.2
-# TODO: update when Delta Lake 2.1.0 is officially out
-io.delta:delta-core_2.12 = 2.1.0rc1
+io.delta:delta-core_2.12 = 2.1.0
