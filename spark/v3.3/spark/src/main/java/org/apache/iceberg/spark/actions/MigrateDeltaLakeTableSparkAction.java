@@ -215,7 +215,7 @@ public class MigrateDeltaLakeTableSparkAction implements MigrateDeltaLakeTable {
               .orElseThrow(
                   () ->
                       new RuntimeException(
-                          String.format("File %s removed with specifying a size", path)));
+                          String.format("File %s removed without specifying a size", path)));
       partitionValues =
           Optional.ofNullable(removeFile.getPartitionValues())
               .orElseThrow(
