@@ -294,6 +294,8 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    compileOnly "io.delta:delta-standalone_2.12"
+
     testImplementation "org.eclipse.jetty:jetty-servlet"
     testImplementation "org.eclipse.jetty:jetty-server"
     testImplementation 'org.mock-server:mockserver-netty'
