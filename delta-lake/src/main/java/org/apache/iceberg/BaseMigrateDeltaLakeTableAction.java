@@ -126,7 +126,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
-    // TODO: double check the arguments' meaning here
     Iterator<VersionLog> it =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
