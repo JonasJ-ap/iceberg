@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -163,16 +162,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
               .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
               .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
 
-      // Scan the map so that we know what type of transaction this will be in Iceberg
-      IcebergTransactionType icebergTransactionType =
-          getIcebergTransactionTypeFromDeltaActions(deltaLakeActionMap);
-      if (icebergTransactionType == null) {
-        // TODO: my understanding here is that if the transaction type is undefined,
-        //  we can no longer continue even the next versionLog contains valid transaction type
-        //  may need further check
-        return;
-      }
-
       List<DataFile> filesToAdd = Lists.newArrayList();
       List<DataFile> filesToRemove = Lists.newArrayList();
       for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
@@ -187,45 +176,24 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         }
       }
 
-      switch (icebergTransactionType) {
-        case APPEND_FILES:
-          AppendFiles appendFiles = table.newAppend();
-          filesToAdd.forEach(appendFiles::appendFile);
-          appendFiles.commit();
-          break;
-        case DELETE_FILES:
-          DeleteFiles deleteFiles = table.newDelete();
-          filesToRemove.forEach(deleteFiles::deleteFile);
-          deleteFiles.commit();
-          break;
-        case OVERWRITE_FILES:
-          OverwriteFiles overwriteFiles = table.newOverwrite();
-          filesToAdd.forEach(overwriteFiles::addFile);
-          filesToRemove.forEach(overwriteFiles::deleteFile);
-          overwriteFiles.commit();
-          break;
+      if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
+        // Overwrite_Files case
+        OverwriteFiles overwriteFiles = table.newOverwrite();
+        filesToAdd.forEach(overwriteFiles::addFile);
+        filesToRemove.forEach(overwriteFiles::deleteFile);
+        overwriteFiles.commit();
+      } else if (filesToAdd.size() > 0) {
+        // Append_Files case
+        AppendFiles appendFiles = table.newAppend();
+        filesToAdd.forEach(appendFiles::appendFile);
+        appendFiles.commit();
+      } else if (filesToRemove.size() > 0) {
+        // Delete_Files case
+        DeleteFiles deleteFiles = table.newDelete();
+        filesToRemove.forEach(deleteFiles::deleteFile);
+        deleteFiles.commit();
       }
     }
-  }
-
-  @Nullable
-  private IcebergTransactionType getIcebergTransactionTypeFromDeltaActions(
-      Map<String, List<Action>> actionsMap) {
-    IcebergTransactionType icebergTransactionType;
-    if (actionsMap.containsKey(AddFile.class.getSimpleName())
-        && !actionsMap.containsKey(RemoveFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.APPEND_FILES;
-    } else if (actionsMap.containsKey(RemoveFile.class.getSimpleName())
-        && !actionsMap.containsKey(AddFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.DELETE_FILES;
-    } else if (actionsMap.containsKey(AddFile.class.getSimpleName())
-        && actionsMap.containsKey(RemoveFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.OVERWRITE_FILES;
-    } else {
-      // Some other type of transaction, we can ignore
-      return null;
-    }
-    return icebergTransactionType;
   }
 
   private DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
