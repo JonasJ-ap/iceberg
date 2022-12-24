@@ -51,6 +51,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
 import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -62,8 +63,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table
- * in the same location with a different identifier.
+ * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in the
+ * same location with a different identifier.
  */
 public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
@@ -87,7 +88,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
-    // TODO: check whether we can retrieve hadoopConfiguration directly
     this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
   }
 
@@ -175,8 +175,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         } else if (action instanceof RemoveFile) {
           filesToRemove.add(dataFile);
         } else {
-          // TODO: refactor this exception
-          throw new RuntimeException("Wrong action type");
+          throw new ValidationException(
+              String.format("The action %s's is unsupported", action.getClass().getSimpleName()));
         }
       }
 
@@ -224,7 +224,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new RuntimeException(String.format("File %s does not specify a partitionValues", path));
+      throw new ValidationException(
+          String.format("File %s does not specify a partitionValues", path));
     }
 
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
@@ -264,7 +265,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         return TableMigrationUtil.getOrcMetrics(
             new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
       default:
-        throw new RuntimeException("Unsupported file format: " + format);
+        throw new ValidationException("Unsupported file format: " + format);
     }
   }
 
@@ -276,7 +277,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     } else if (path.endsWith(orcSuffix)) {
       return FileFormat.ORC;
     } else {
-      throw new RuntimeException("The format of the file is unsupported: " + path);
+      throw new ValidationException("The format of the file is unsupported: " + path);
     }
   }
 
@@ -293,11 +294,5 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     properties.putAll(additionalProperties);
 
     return properties;
-  }
-
-  private enum IcebergTransactionType {
-    APPEND_FILES,
-    DELETE_FILES,
-    OVERWRITE_FILES
   }
 }
