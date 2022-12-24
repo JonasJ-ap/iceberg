@@ -27,7 +27,6 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -140,13 +139,13 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
-    Iterator<VersionLog> it =
+    Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
             false); // not throw exception when data loss detected
 
-    while (it.hasNext()) {
-      VersionLog versionLog = it.next();
+    while (versionLogIterator.hasNext()) {
+      VersionLog versionLog = versionLogIterator.next();
       List<Action> actions = versionLog.getActions();
 
       // We first need to iterate through to see what kind of transaction this was. There are 3
@@ -216,17 +215,16 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
                   () ->
                       new RuntimeException(
                           String.format("File %s removed with specifying a size", path)));
-      partitionValues =
-          Optional.ofNullable(removeFile.getPartitionValues())
-              .orElseThrow(
-                  () ->
-                      new RuntimeException(
-                          String.format(
-                              "File %s removed without specifying partition values", path)));
+      partitionValues = removeFile.getPartitionValues();
     } else {
       throw new IllegalStateException(
           String.format(
               "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
+    }
+
+    if (partitionValues == null) {
+      // For unpartitioned table, the partitionValues should be an empty map rather than null
+      throw new RuntimeException(String.format("File %s does not specify a partitionValues", path));
     }
 
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
@@ -245,7 +243,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         .withFileSizeInBytes(size)
         .withMetrics(metrics)
         .withPartitionPath(partition)
-        .withRecordCount(metrics.recordCount())
         .build();
   }
 
