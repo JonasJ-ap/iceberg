@@ -176,7 +176,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
           filesToRemove.add(dataFile);
         } else {
           throw new ValidationException(
-              String.format("The action %s's is unsupported", action.getClass().getSimpleName()));
+              "The action %s's is unsupported", action.getClass().getSimpleName());
         }
       }
 
@@ -224,8 +224,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new ValidationException(
-          String.format("File %s does not specify a partitionValues", path));
+      throw new ValidationException("File %s does not specify a partitionValues", path);
     }
 
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
@@ -265,7 +264,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         return TableMigrationUtil.getOrcMetrics(
             new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
       default:
-        throw new ValidationException("Unsupported file format: " + format);
+        throw new ValidationException("Unsupported file format: %s", format);
     }
   }
 
@@ -277,7 +276,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     } else if (path.endsWith(orcSuffix)) {
       return FileFormat.ORC;
     } else {
-      throw new ValidationException("The format of the file is unsupported: " + path);
+      throw new ValidationException("The format of the file %s is unsupported", path);
     }
   }
 
