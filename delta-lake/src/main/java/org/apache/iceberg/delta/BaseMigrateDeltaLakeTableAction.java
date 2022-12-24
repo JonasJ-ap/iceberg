@@ -27,6 +27,7 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -197,24 +198,19 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
     String path;
-    long size;
+    Optional<Long> nullableSize;
     Map<String, String> partitionValues;
+    long size;
 
     if (action instanceof AddFile) {
       AddFile addFile = (AddFile) action;
       path = addFile.getPath();
-      size = addFile.getSize();
+      nullableSize = Optional.of(addFile.getSize());
       partitionValues = addFile.getPartitionValues();
     } else if (action instanceof RemoveFile) {
       RemoveFile removeFile = (RemoveFile) action;
       path = removeFile.getPath();
-      size =
-          removeFile
-              .getSize()
-              .orElseThrow(
-                  () ->
-                      new RuntimeException(
-                          String.format("File %s removed with specifying a size", path)));
+      nullableSize = removeFile.getSize();
       partitionValues = removeFile.getPartitionValues();
     } else {
       throw new IllegalStateException(
@@ -236,6 +232,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             .map(PartitionField::name)
             .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
             .collect(Collectors.joining("/"));
+
+    size = nullableSize.orElseGet(() -> table.io().newInputFile(path).getLength());
 
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
