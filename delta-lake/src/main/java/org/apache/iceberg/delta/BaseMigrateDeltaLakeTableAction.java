@@ -65,9 +65,9 @@ import org.slf4j.LoggerFactory;
 public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
-  private final String parquetSuffix = ".parquet";
-  private final String avroSuffix = ".avro";
-  private final String orcSuffix = ".orc";
+  private static final String parquetSuffix = ".parquet";
+  private static final String avroSuffix = ".avro";
+  private static final String orcSuffix = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
