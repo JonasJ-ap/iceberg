@@ -16,18 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg.delta.actions;
 
-public class BaseMigrateDeltaLakeTableActionResult implements MigrateDeltaLakeTable.Result {
+import java.util.Map;
+import org.apache.iceberg.actions.Action;
 
-  private final long importedDataFilesCount;
+/** Migrates a Delta Lake table to Iceberg in place. */
+public interface MigrateDeltaLakeTable
+    extends Action<MigrateDeltaLakeTable, MigrateDeltaLakeTable.Result> {
 
-  public BaseMigrateDeltaLakeTableActionResult(long importedDataFilesCount) {
-    this.importedDataFilesCount = importedDataFilesCount;
-  }
+  MigrateDeltaLakeTable tableProperties(Map<String, String> properties);
 
-  @Override
-  public long importedDataFilesCount() {
-    return importedDataFilesCount;
+  interface Result {
+
+    /** Returns the number of imported data files. */
+    long importedDataFilesCount();
   }
 }
