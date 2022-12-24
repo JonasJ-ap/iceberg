@@ -21,15 +21,23 @@ package org.apache.iceberg.delta.actions;
 import java.util.Map;
 import org.apache.iceberg.actions.Action;
 
-/** Migrates a Delta Lake table to Iceberg in place. */
+/** Migrates an existing Delta Lake table to Iceberg in place. */
 public interface MigrateDeltaLakeTable
     extends Action<MigrateDeltaLakeTable, MigrateDeltaLakeTable.Result> {
 
+  /**
+   * Sets table properties in the newly created Iceberg table. Any properties with the same key name
+   * will be overwritten.
+   *
+   * @param properties a map of properties to set
+   * @return this for method chaining
+   */
   MigrateDeltaLakeTable tableProperties(Map<String, String> properties);
 
+  /** The action result that contains a summary of the execution. */
   interface Result {
 
-    /** Returns the number of imported data files. */
-    long importedDataFilesCount();
+    /** Returns the number of migrated data files. */
+    long migratedDataFilesCount();
   }
 }

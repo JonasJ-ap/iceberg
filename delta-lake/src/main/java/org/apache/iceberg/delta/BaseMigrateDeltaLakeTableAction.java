@@ -61,6 +61,10 @@ import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table
+ * in the same location with a different identifier.
+ */
 public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);

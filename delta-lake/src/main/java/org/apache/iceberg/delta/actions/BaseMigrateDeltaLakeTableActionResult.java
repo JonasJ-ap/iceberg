@@ -20,14 +20,14 @@ package org.apache.iceberg.delta.actions;
 
 public class BaseMigrateDeltaLakeTableActionResult implements MigrateDeltaLakeTable.Result {
 
-  private final long importedDataFilesCount;
+  private final long migratedDataFilesCount;
 
-  public BaseMigrateDeltaLakeTableActionResult(long importedDataFilesCount) {
-    this.importedDataFilesCount = importedDataFilesCount;
+  public BaseMigrateDeltaLakeTableActionResult(long migratedDataFilesCount) {
+    this.migratedDataFilesCount = migratedDataFilesCount;
   }
 
   @Override
-  public long importedDataFilesCount() {
-    return importedDataFilesCount;
+  public long migratedDataFilesCount() {
+    return migratedDataFilesCount;
   }
 }
