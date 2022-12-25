@@ -51,6 +51,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
 import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.conversions.DeltaLakeDataTypeVisitor;
+import org.apache.iceberg.delta.conversions.DeltaLakeTypeToType;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
