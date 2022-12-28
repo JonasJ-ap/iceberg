@@ -76,6 +76,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
   private final Configuration hadoopConfiguration;
+  private final String newTableLocation;
 
   public BaseMigrateDeltaLakeTableAction(
       Catalog icebergCatalog,
@@ -86,6 +87,21 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
+    this.newTableLocation = deltaTableLocation;
+    this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
+  }
+
+  public BaseMigrateDeltaLakeTableAction(
+      Catalog icebergCatalog,
+      String deltaTableLocation,
+      TableIdentifier newTableIdentifier,
+      String newTableLocation,
+      Configuration hadoopConfiguration) {
+    this.icebergCatalog = icebergCatalog;
+    this.deltaTableLocation = deltaTableLocation;
+    this.newTableIdentifier = newTableIdentifier;
+    this.hadoopConfiguration = hadoopConfiguration;
+    this.newTableLocation = newTableLocation;
     this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
   }
 
@@ -106,6 +122,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             newTableIdentifier,
             schema,
             partitionSpec,
+            this.newTableLocation,
             destTableProperties(
                 updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
 
@@ -119,7 +136,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     long totalDataFiles =
         Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info(
-        "Successfully loaded Iceberg metadata for {} files to {}",
+        "Successfully loaded Iceberg metadata for {} files in {}",
         totalDataFiles,
         deltaTableLocation);
     return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
@@ -246,7 +263,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
             .collect(Collectors.joining("/"));
 
-    size = nullableSize.orElseGet(() -> table.io().newInputFile(path).getLength());
+    size = nullableSize.orElseGet(() -> table.io().newInputFile(fullFilePath).getLength());
 
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
