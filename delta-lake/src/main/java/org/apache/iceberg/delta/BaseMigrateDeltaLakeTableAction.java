@@ -43,6 +43,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
@@ -108,7 +109,11 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             destTableProperties(
                 updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
 
-    copyFromDeltaLakeToIceberg(icebergTable, partitionSpec);
+    Transaction icebergTransaction = icebergTable.newTransaction();
+
+    copyFromDeltaLakeToIceberg(icebergTable, icebergTransaction, partitionSpec);
+
+    icebergTransaction.commitTransaction();
 
     Snapshot snapshot = icebergTable.currentSnapshot();
     long totalDataFiles =
@@ -140,7 +145,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return builder.build();
   }
 
-  private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
+  private void copyFromDeltaLakeToIceberg(
+      Table table, Transaction transaction, PartitionSpec spec) {
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -148,52 +154,57 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
-      List<Action> actions = versionLog.getActions();
+      commitDeltaVersionLogToIcebergTransaction(versionLog, transaction, table, spec);
+    }
+  }
 
-      // We first need to iterate through to see what kind of transaction this was. There are 3
-      // cases:
-      // 1. AppendFile - when there are only AddFile instances (an INSERT on the table)
-      // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
-      // of file(s) were removed
-      // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
+  private void commitDeltaVersionLogToIcebergTransaction(
+      VersionLog versionLog, Transaction transaction, Table table, PartitionSpec spec) {
+    List<Action> actions = versionLog.getActions();
 
-      // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
-      Map<String, List<Action>> deltaLakeActionMap =
-          actions.stream()
-              .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-              .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
+    // We first need to iterate through to see what kind of transaction this was. There are 3
+    // cases:
+    // 1. AppendFile - when there are only AddFile instances (an INSERT on the table)
+    // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
+    // of file(s) were removed
+    // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
 
-      List<DataFile> filesToAdd = Lists.newArrayList();
-      List<DataFile> filesToRemove = Lists.newArrayList();
-      for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
-        DataFile dataFile = buildDataFileFromAction(action, table, spec);
-        if (action instanceof AddFile) {
-          filesToAdd.add(dataFile);
-        } else if (action instanceof RemoveFile) {
-          filesToRemove.add(dataFile);
-        } else {
-          throw new ValidationException(
-              "The action %s's is unsupported", action.getClass().getSimpleName());
-        }
+    // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
+    Map<String, List<Action>> deltaLakeActionMap =
+        actions.stream()
+            .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
+            .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
+
+    List<DataFile> filesToAdd = Lists.newArrayList();
+    List<DataFile> filesToRemove = Lists.newArrayList();
+    for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
+      DataFile dataFile = buildDataFileFromAction(action, table, spec);
+      if (action instanceof AddFile) {
+        filesToAdd.add(dataFile);
+      } else if (action instanceof RemoveFile) {
+        filesToRemove.add(dataFile);
+      } else {
+        throw new ValidationException(
+            "The action %s's is unsupported", action.getClass().getSimpleName());
       }
+    }
 
-      if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
-        // Overwrite_Files case
-        OverwriteFiles overwriteFiles = table.newOverwrite();
-        filesToAdd.forEach(overwriteFiles::addFile);
-        filesToRemove.forEach(overwriteFiles::deleteFile);
-        overwriteFiles.commit();
-      } else if (filesToAdd.size() > 0) {
-        // Append_Files case
-        AppendFiles appendFiles = table.newAppend();
-        filesToAdd.forEach(appendFiles::appendFile);
-        appendFiles.commit();
-      } else if (filesToRemove.size() > 0) {
-        // Delete_Files case
-        DeleteFiles deleteFiles = table.newDelete();
-        filesToRemove.forEach(deleteFiles::deleteFile);
-        deleteFiles.commit();
-      }
+    if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
+      // Overwrite_Files case
+      OverwriteFiles overwriteFiles = transaction.newOverwrite();
+      filesToAdd.forEach(overwriteFiles::addFile);
+      filesToRemove.forEach(overwriteFiles::deleteFile);
+      overwriteFiles.commit();
+    } else if (filesToAdd.size() > 0) {
+      // Append_Files case
+      AppendFiles appendFiles = transaction.newAppend();
+      filesToAdd.forEach(appendFiles::appendFile);
+      appendFiles.commit();
+    } else if (filesToRemove.size() > 0) {
+      // Delete_Files case
+      DeleteFiles deleteFiles = transaction.newDelete();
+      filesToRemove.forEach(deleteFiles::deleteFile);
+      deleteFiles.commit();
     }
   }
 
