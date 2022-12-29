@@ -60,6 +60,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -260,7 +261,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
               "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
     }
 
-    String fullFilePath = getFullFilePath(path);
+    String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
 
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
@@ -347,14 +348,15 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   /**
-   * Get the full file path, the input {@code String} can be either a relative path or an absolute
-   * path of a data file in delta table
+   * Get the full file path, the input {@code String} path can be either a relative path or an
+   * absolute path of a data file in delta table
    *
    * @param path the return value of {@link AddFile#getPath()} or {@link RemoveFile#getPath()}
    *     (either absolute or relative)
+   * @param tableRoot the root path of the delta table
    */
-  private String getFullFilePath(String path) {
-    String tableRoot = deltaLog.getPath().toString();
+  @VisibleForTesting
+  static String getFullFilePath(String path, String tableRoot) {
     if (path.startsWith(tableRoot)) {
       return path;
     } else {
