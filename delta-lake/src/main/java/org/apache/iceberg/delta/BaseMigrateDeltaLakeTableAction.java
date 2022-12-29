@@ -69,15 +69,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in the
- * same location with a different identifier.
+ * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in an
+ * optional user-specified location (default to the Delta Lake table's location) with a different
+ * identifier.
  */
 public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
-  private static final String parquetSuffix = ".parquet";
-  private static final String avroSuffix = ".avro";
-  private static final String orcSuffix = ".orc";
+
+  private static final String MIGRATION_SOURCE_PROP = "migration_source";
+  private static final String DELTA_SOURCE_VALUE = "delta";
+  private static final String ORIGINAL_LOCATION_PROP = "original_location";
+  private static final String PARQUET_SUFFIX = ".parquet";
+  private static final String AVRO_SUFFIX = ".avro";
+  private static final String ORC_SUFFIX = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
@@ -124,7 +129,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
-    // TODO: check whether we need more info when initializing the table
     Table icebergTable =
         this.icebergCatalog.createTable(
             newTableIdentifier,
@@ -134,11 +138,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             destTableProperties(
                 updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
 
-    Transaction icebergTransaction = icebergTable.newTransaction();
-
-    copyFromDeltaLakeToIceberg(icebergTable, icebergTransaction, partitionSpec);
-
-    icebergTransaction.commitTransaction();
+    copyFromDeltaLakeToIceberg(icebergTable, partitionSpec);
 
     Snapshot snapshot = icebergTable.currentSnapshot();
     long totalDataFiles =
@@ -150,7 +150,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
   }
 
-  /** TODO: check the correctness for nested schema */
   private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
     Type converted =
         DeltaLakeDataTypeVisitor.visit(deltaSchema, new DeltaLakeTypeToType(deltaSchema));
@@ -170,8 +169,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return builder.build();
   }
 
-  private void copyFromDeltaLakeToIceberg(
-      Table table, Transaction transaction, PartitionSpec spec) {
+  private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
+    // Make the migration process into one transaction
+    Transaction transaction = table.newTransaction();
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -181,6 +181,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, transaction, table, spec);
     }
+
+    // commit transaction once all dataFiles are registered.
+    transaction.commitTransaction();
   }
 
   private void commitDeltaVersionLogToIcebergTransaction(
@@ -288,11 +291,11 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   private FileFormat determineFileFormatFromPath(String path) {
-    if (path.endsWith(parquetSuffix)) {
+    if (path.endsWith(PARQUET_SUFFIX)) {
       return FileFormat.PARQUET;
-    } else if (path.endsWith(avroSuffix)) {
+    } else if (path.endsWith(AVRO_SUFFIX)) {
       return FileFormat.AVRO;
-    } else if (path.endsWith(orcSuffix)) {
+    } else if (path.endsWith(ORC_SUFFIX)) {
       return FileFormat.ORC;
     } else {
       throw new ValidationException("The format of the file %s is unsupported", path);
@@ -323,14 +326,14 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static Map<String, String> destTableProperties(
       io.delta.standalone.Snapshot deltaSnapshot,
-      String tableLocation,
+      String originalLocation,
       Map<String, String> additionalProperties) {
     Map<String, String> properties = Maps.newHashMap();
 
     properties.putAll(deltaSnapshot.getMetadata().getConfiguration());
     properties.putAll(
         ImmutableMap.of(
-            "migration_source", "delta", "table_type", "iceberg", "location", tableLocation));
+            MIGRATION_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
     properties.putAll(additionalProperties);
 
     return properties;
