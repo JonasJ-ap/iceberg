@@ -136,8 +136,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
-    Table icebergTable =
-        this.icebergCatalog.createTable(
+    Transaction icebergTransaction =
+        this.icebergCatalog.newCreateTableTransaction(
             newTableIdentifier,
             schema,
             partitionSpec,
@@ -145,8 +145,10 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             destTableProperties(
                 updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
 
-    copyFromDeltaLakeToIceberg(icebergTable, partitionSpec);
+    copyFromDeltaLakeToIceberg(icebergTransaction);
+    icebergTransaction.commitTransaction();
 
+    Table icebergTable = icebergCatalog.loadTable(newTableIdentifier);
     Snapshot snapshot = icebergTable.currentSnapshot();
     long totalDataFiles =
         Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
@@ -176,9 +178,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return builder.build();
   }
 
-  private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
-    // Make the migration process into one transaction
-    Transaction transaction = table.newTransaction();
+  private void copyFromDeltaLakeToIceberg(Transaction transaction) {
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -186,15 +186,12 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
-      commitDeltaVersionLogToIcebergTransaction(versionLog, transaction, table, spec);
+      commitDeltaVersionLogToIcebergTransaction(versionLog, transaction);
     }
-
-    // commit transaction once all dataFiles are registered.
-    transaction.commitTransaction();
   }
 
   private void commitDeltaVersionLogToIcebergTransaction(
-      VersionLog versionLog, Transaction transaction, Table table, PartitionSpec spec) {
+      VersionLog versionLog, Transaction transaction) {
     List<Action> actions = versionLog.getActions();
 
     // We first need to iterate through to see what kind of transaction this was. There are 3
@@ -213,7 +210,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
     for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
-      DataFile dataFile = buildDataFileFromAction(action, table, spec);
+      DataFile dataFile = buildDataFileFromAction(action, transaction.table());
       if (action instanceof AddFile) {
         filesToAdd.add(dataFile);
       } else if (action instanceof RemoveFile) {
@@ -243,7 +240,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
   }
 
-  public DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
+  public DataFile buildDataFileFromAction(Action action, Table table) {
+    PartitionSpec spec = table.spec();
     String path;
     Map<String, String> partitionValues;
 
