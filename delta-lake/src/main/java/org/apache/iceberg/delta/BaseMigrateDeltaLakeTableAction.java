@@ -125,6 +125,12 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   @Override
+  public MigrateDeltaLakeTable tableProperty(String name, String value) {
+    additionalProperties.put(name, value);
+    return this;
+  }
+
+  @Override
   public Result execute() {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());

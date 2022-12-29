@@ -34,6 +34,16 @@ public interface MigrateDeltaLakeTable
    */
   MigrateDeltaLakeTable tableProperties(Map<String, String> properties);
 
+  /**
+   * Sets a table property in the newly created Iceberg table. Any properties with the same key will
+   * be overwritten.
+   *
+   * @param name a table property name
+   * @param value a table property value
+   * @return this for method chaining
+   */
+  MigrateDeltaLakeTable tableProperty(String name, String value);
+
   /** The action result that contains a summary of the execution. */
   interface Result {
 
