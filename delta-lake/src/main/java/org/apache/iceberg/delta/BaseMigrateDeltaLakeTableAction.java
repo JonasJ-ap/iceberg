@@ -24,7 +24,6 @@ import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import java.io.File;
-import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -310,23 +309,16 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private Metrics getMetricsForFile(
       InputFile file, FileFormat format, MetricsConfig metricsSpec, NameMapping mapping) {
-    try {
-      switch (format) {
-        case AVRO:
-          long rowCount = Avro.rowCount(file);
-          return new Metrics(rowCount, null, null, null, null);
-        case PARQUET:
-          return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
-        case ORC:
-          return OrcMetrics.fromInputFile(file, metricsSpec, mapping);
-        default:
-          throw new ValidationException("Unsupported file format: %s", format);
-      }
-    } catch (UncheckedIOException e) {
-      throw new RuntimeException(
-          String.format(
-              "Unable to read the metrics of the %s file: %s", format.name(), file.location()),
-          e);
+    switch (format) {
+      case AVRO:
+        long rowCount = Avro.rowCount(file);
+        return new Metrics(rowCount, null, null, null, null);
+      case PARQUET:
+        return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+      case ORC:
+        return OrcMetrics.fromInputFile(file, metricsSpec, mapping);
+      default:
+        throw new ValidationException("Unsupported file format: %s", format);
     }
   }
 
