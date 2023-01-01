@@ -34,8 +34,6 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
 
   private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeTableSparkAction.class);
 
-  private final SparkSession spark;
-
   MigrateDeltaLakeTableSparkAction(
       SparkSession spark, String deltaTableLocation, String newTableIdentifier) {
     super(
@@ -44,6 +42,5 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
         deltaTableLocation,
         TableIdentifier.parse(newTableIdentifier),
         spark.sessionState().newHadoopConf());
-    this.spark = spark;
   }
 }
