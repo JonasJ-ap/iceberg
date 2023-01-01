@@ -35,10 +35,12 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
   private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeTableSparkAction.class);
 
   MigrateDeltaLakeTableSparkAction(
-      SparkSession spark, String deltaTableLocation, String newTableIdentifier) {
+      SparkSession spark,
+      String deltaTableLocation,
+      String newTableIdentifier,
+      String catalogName) {
     super(
-        Spark3Util.loadIcebergCatalog(
-            spark, spark.sessionState().catalogManager().currentCatalog().name()),
+        Spark3Util.loadIcebergCatalog(spark, catalogName),
         deltaTableLocation,
         TableIdentifier.parse(newTableIdentifier),
         spark.sessionState().newHadoopConf());
