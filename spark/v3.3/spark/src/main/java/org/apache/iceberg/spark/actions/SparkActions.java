@@ -84,6 +84,21 @@ public class SparkActions implements SupportMigrationFromDeltaLake, ActionsProvi
   }
 
   @Override
+  public MigrateDeltaLakeTable migrateDeltaLakeTable(
+      String newTableIdentifier, String deltaTableLocation, String newTableLocation) {
+    String ctx = "delta lake migrate target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+    return new MigrateDeltaLakeTableSparkAction(
+        spark,
+        deltaTableLocation,
+        catalogAndIdent.identifier().toString(),
+        catalogAndIdent.catalog().name(),
+        newTableLocation);
+  }
+
+  @Override
   public RewriteDataFilesSparkAction rewriteDataFiles(Table table) {
     return new RewriteDataFilesSparkAction(spark, table);
   }

@@ -45,4 +45,18 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
         TableIdentifier.parse(newTableIdentifier),
         spark.sessionState().newHadoopConf());
   }
+
+  MigrateDeltaLakeTableSparkAction(
+      SparkSession spark,
+      String deltaTableLocation,
+      String newTableIdentifier,
+      String catalogName,
+      String newTableLocation) {
+    super(
+        Spark3Util.loadIcebergCatalog(spark, catalogName),
+        deltaTableLocation,
+        TableIdentifier.parse(newTableIdentifier),
+        newTableLocation,
+        spark.sessionState().newHadoopConf());
+  }
 }
