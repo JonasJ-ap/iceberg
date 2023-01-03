@@ -22,8 +22,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.delta.BaseMigrateDeltaLakeTableAction;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Takes a Delta Lake table and attempts to transform it into an Iceberg table in the same location
@@ -31,9 +29,6 @@ import org.slf4j.LoggerFactory;
  * table will refer to the newly migrated Iceberg table.
  */
 public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
-
-  private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeTableSparkAction.class);
-
   MigrateDeltaLakeTableSparkAction(
       SparkSession spark,
       String deltaTableLocation,
