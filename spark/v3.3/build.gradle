@@ -91,9 +91,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
+    compileOnly "io.delta:delta-standalone_${scalaVersion}"
+
     // Needed to write Delta Lake tables for testing
     testImplementation "io.delta:delta-core_${scalaVersion}"
-    testImplementation "io.delta:delta-standalone_${scalaVersion}"
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
