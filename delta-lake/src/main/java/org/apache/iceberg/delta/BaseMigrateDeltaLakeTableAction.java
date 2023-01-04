@@ -114,7 +114,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
-    this.newTableLocation = newTableLocation;
+    this.newTableLocation = newTableLocation == null ? deltaTableLocation : newTableLocation;
     this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
   }
 
