@@ -101,7 +101,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
     this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
+    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
   }
 
   public BaseMigrateDeltaLakeTableAction(
@@ -115,7 +115,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
     this.newTableLocation = newTableLocation;
-    this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
+    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
   }
 
   @Override
@@ -136,13 +136,12 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
     Transaction icebergTransaction =
-        this.icebergCatalog.newCreateTableTransaction(
+        icebergCatalog.newCreateTableTransaction(
             newTableIdentifier,
             schema,
             partitionSpec,
-            this.newTableLocation,
-            destTableProperties(
-                updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
+            newTableLocation,
+            destTableProperties(updatedSnapshot, deltaTableLocation, additionalProperties));
 
     copyFromDeltaLakeToIceberg(icebergTransaction);
     icebergTransaction.commitTransaction();
@@ -195,7 +194,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     // We first need to iterate through to see what kind of transaction this was. There are 3
     // cases:
-    // 1. AppendFile - when there are only AddFile instances (an INSERT on the table)
+    // 1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
     // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
     // of file(s) were removed
     // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
@@ -221,18 +220,18 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
 
     if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
-      // Overwrite_Files case
+      // OverwriteFiles case
       OverwriteFiles overwriteFiles = transaction.newOverwrite();
       filesToAdd.forEach(overwriteFiles::addFile);
       filesToRemove.forEach(overwriteFiles::deleteFile);
       overwriteFiles.commit();
     } else if (filesToAdd.size() > 0) {
-      // Append_Files case
+      // AppendFiles case
       AppendFiles appendFiles = transaction.newAppend();
       filesToAdd.forEach(appendFiles::appendFile);
       appendFiles.commit();
     } else if (filesToRemove.size() > 0) {
-      // Delete_Files case
+      // DeleteFiles case
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
@@ -253,16 +252,16 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       path = removeFile.getPath();
       partitionValues = removeFile.getPartitionValues();
     } else {
-      throw new IllegalStateException(
-          String.format(
-              "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
+      throw new ValidationException(
+          "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName());
     }
 
     String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
 
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new ValidationException("File %s does not specify a partitionValues", fullFilePath);
+      throw new IllegalArgumentException(
+          String.format("File %s does not specify a partitionValues", fullFilePath));
     }
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
@@ -271,7 +270,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     if (io != null) {
       file = io.newInputFile(fullFilePath);
     } else {
-      file = HadoopInputFile.fromPath(new Path(fullFilePath), this.hadoopConfiguration);
+      file = HadoopInputFile.fromPath(new Path(fullFilePath), hadoopConfiguration);
     }
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
