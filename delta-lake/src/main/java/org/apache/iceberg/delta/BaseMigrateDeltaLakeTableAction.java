@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -52,8 +51,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.delta.utils.DeltaLakeDataTypeVisitor;
 import org.apache.iceberg.delta.utils.DeltaLakeTypeToType;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -88,8 +86,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private final Catalog icebergCatalog;
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
-  private final Configuration hadoopConfiguration;
   private final String newTableLocation;
+  private final HadoopFileIO hadoopFileIO;
 
   public BaseMigrateDeltaLakeTableAction(
       Catalog icebergCatalog,
@@ -99,9 +97,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.hadoopConfiguration = hadoopConfiguration;
     this.newTableLocation = deltaTableLocation;
     this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
+    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
   }
 
   public BaseMigrateDeltaLakeTableAction(
@@ -113,9 +111,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.hadoopConfiguration = hadoopConfiguration;
     this.newTableLocation = newTableLocation == null ? deltaTableLocation : newTableLocation;
     this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
+    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
   }
 
   @Override
@@ -263,14 +261,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
-    FileIO io = table.io();
-    InputFile file;
-    if (io != null) {
-      file = io.newInputFile(fullFilePath);
-    } else {
-      file = HadoopInputFile.fromPath(new Path(fullFilePath), hadoopConfiguration);
-    }
-
+    InputFile file = hadoopFileIO.newInputFile(fullFilePath);
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
