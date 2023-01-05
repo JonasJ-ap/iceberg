@@ -62,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,7 +81,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private static final String PARQUET_SUFFIX = ".parquet";
   private static final String AVRO_SUFFIX = ".avro";
   private static final String ORC_SUFFIX = ".orc";
-  private final Map<String, String> additionalProperties = Maps.newHashMap();
+  private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
+      ImmutableMap.builder();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
   private final String deltaTableLocation;
@@ -119,13 +119,13 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   @Override
   public MigrateDeltaLakeTable tableProperties(Map<String, String> properties) {
-    additionalProperties.putAll(properties);
+    additionalPropertiesBuilder.putAll(properties);
     return this;
   }
 
   @Override
   public MigrateDeltaLakeTable tableProperty(String name, String value) {
-    additionalProperties.put(name, value);
+    additionalPropertiesBuilder.put(name, value);
     return this;
   }
 
@@ -140,7 +140,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             schema,
             partitionSpec,
             newTableLocation,
-            destTableProperties(updatedSnapshot, deltaTableLocation, additionalProperties));
+            destTableProperties(updatedSnapshot, deltaTableLocation));
 
     long totalDataFiles = copyFromDeltaLakeToIceberg(icebergTransaction);
     icebergTransaction.commitTransaction();
@@ -318,19 +318,14 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
   }
 
-  private static Map<String, String> destTableProperties(
-      io.delta.standalone.Snapshot deltaSnapshot,
-      String originalLocation,
-      Map<String, String> additionalProperties) {
-    Map<String, String> properties = Maps.newHashMap();
-
-    properties.putAll(deltaSnapshot.getMetadata().getConfiguration());
-    properties.putAll(
+  private Map<String, String> destTableProperties(
+      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation) {
+    additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
+    additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             MIGRATION_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
-    properties.putAll(additionalProperties);
 
-    return properties;
+    return additionalPropertiesBuilder.build();
   }
 
   /**
