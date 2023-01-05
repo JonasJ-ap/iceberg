@@ -41,7 +41,6 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -143,13 +142,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             newTableLocation,
             destTableProperties(updatedSnapshot, deltaTableLocation, additionalProperties));
 
-    copyFromDeltaLakeToIceberg(icebergTransaction);
+    long totalDataFiles = copyFromDeltaLakeToIceberg(icebergTransaction);
     icebergTransaction.commitTransaction();
-
-    Table icebergTable = icebergCatalog.loadTable(newTableIdentifier);
-    Snapshot snapshot = icebergTable.currentSnapshot();
-    long totalDataFiles =
-        Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info(
         "Successfully loaded Iceberg metadata for {} files in {}",
         totalDataFiles,
@@ -176,7 +170,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return builder.build();
   }
 
-  private void copyFromDeltaLakeToIceberg(Transaction transaction) {
+  private long copyFromDeltaLakeToIceberg(Transaction transaction) {
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -186,6 +180,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, transaction);
     }
+
+    return Long.parseLong(
+        transaction.table().currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
   }
 
   private void commitDeltaVersionLogToIcebergTransaction(
