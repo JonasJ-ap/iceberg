@@ -24,6 +24,7 @@ import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import java.io.File;
+import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -338,7 +339,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
    */
   @VisibleForTesting
   static String getFullFilePath(String path, String tableRoot) {
-    if (path.startsWith(tableRoot)) {
+    URI dataFileUri = URI.create(path);
+    if (dataFileUri.isAbsolute()) {
       return path;
     } else {
       return tableRoot + File.separator + path;
