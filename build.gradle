@@ -458,6 +458,26 @@ project(':iceberg-delta-lake') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+
+    testImplementation "io.delta:delta-core_${scalaVersion}"
+    testImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+    testImplementation("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // to make sure netty libs only come from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
+    testImplementation project(path: ':iceberg-hive-metastore')
+    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
+      // to make sure netty libs only come from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'org.roaringbitmap'
+    }
   }
 }
 
