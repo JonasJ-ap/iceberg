@@ -460,7 +460,7 @@ project(':iceberg-delta-lake') {
     }
 
     testImplementation "io.delta:delta-core_${scalaVersion}"
-    testImplementation "org.apache.iceberg:iceberg-spark-3.3_${scalaVersion}:1.1.0"
+    testImplementation "org.apache.iceberg:iceberg-spark-3.3_${scalaVersion}:latest.release"
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
