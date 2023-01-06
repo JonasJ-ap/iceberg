@@ -48,7 +48,7 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
     this.root = null;
   }
 
-  public DeltaLakeTypeToType(StructType root) {
+  DeltaLakeTypeToType(StructType root) {
     this.root = root;
     this.nextId = root.getFields().length;
   }
