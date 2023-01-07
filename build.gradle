@@ -467,7 +467,7 @@ project(':iceberg-delta-lake') {
     }
 
     if (sparkVersions.contains("3.3")) {
-      integrationImplementation "io.delta:delta-core_${scalaVersion}:2.2.0"
+      integrationImplementation "io.delta:delta-core_${scalaVersion}"
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
       integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
