@@ -443,10 +443,9 @@ project(':iceberg-aws') {
 }
 
 project(':iceberg-delta-lake') {
-  test {
-    if (!sparkVersions.contains("3.3")) {
-      enabled = false
-    }
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
   }
 
   dependencies {
@@ -468,17 +467,17 @@ project(':iceberg-delta-lake') {
     }
 
     if (sparkVersions.contains("3.3")) {
-      testImplementation "io.delta:delta-core_${scalaVersion}:2.2.0"
-      testImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
-      testImplementation("org.apache.hadoop:hadoop-minicluster") {
+      integrationImplementation "io.delta:delta-core_${scalaVersion}:2.2.0"
+      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+      integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
         // to make sure netty libs only come from project(':iceberg-arrow')
         exclude group: 'io.netty', module: 'netty-buffer'
         exclude group: 'io.netty', module: 'netty-common'
       }
-      testImplementation project(path: ':iceberg-hive-metastore')
-      testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      testImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
+      integrationImplementation project(path: ':iceberg-hive-metastore')
+      integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
@@ -487,6 +486,22 @@ project(':iceberg-delta-lake') {
         exclude group: 'io.netty', module: 'netty-common'
         exclude group: 'org.roaringbitmap'
       }
+    }
+  }
+
+  if (sparkVersions.contains("3.3")) {
+    sourceSets {
+      integration {
+        java.srcDir "$projectDir/src/integration/java"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+      }
+    }
+
+    task integrationTest(type: Test) {
+      testClassesDirs = sourceSets.integration.output.classesDirs
+      classpath = sourceSets.integration.runtimeClasspath
     }
   }
 }
