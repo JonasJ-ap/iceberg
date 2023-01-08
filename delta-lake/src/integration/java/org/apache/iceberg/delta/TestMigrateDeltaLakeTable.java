@@ -166,7 +166,8 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     // This will test the scenario that the user switches the configuration and sets the default
     // catalog to be Iceberg
     // AFTER they had made it Delta and written a delta table there
-    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), partitionedLocation);
+    DeltaLog deltaLog =
+        DeltaLog.forTable(spark.sessionState().newHadoopConf(), partitionedLocation);
     spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
 
     catalogName = defaultSparkCatalog;
