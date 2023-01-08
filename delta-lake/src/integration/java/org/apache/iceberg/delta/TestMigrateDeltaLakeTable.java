@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.delta;
 
+import io.delta.standalone.DeltaLog;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -165,6 +166,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     // This will test the scenario that the user switches the configuration and sets the default
     // catalog to be Iceberg
     // AFTER they had made it Delta and written a delta table there
+    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), partitionedLocation);
     spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
 
     catalogName = defaultSparkCatalog;
@@ -179,6 +181,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     Assert.assertEquals(oldResults.size(), newResults.size());
     Assert.assertTrue(newResults.containsAll(oldResults));
     Assert.assertTrue(oldResults.containsAll(newResults));
+    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.migratedDataFilesCount());
   }
 
   @Test
@@ -186,6 +189,8 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     // This will test the scenario that the user switches the configuration and sets the default
     // catalog to be Iceberg
     // AFTER they had made it Delta and written a delta table there
+    DeltaLog deltaLog =
+        DeltaLog.forTable(spark.sessionState().newHadoopConf(), unpartitionedLocation);
     spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
 
     catalogName = defaultSparkCatalog;
@@ -200,6 +205,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     Assert.assertEquals(oldResults.size(), newResults.size());
     Assert.assertTrue(newResults.containsAll(oldResults));
     Assert.assertTrue(oldResults.containsAll(newResults));
+    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.migratedDataFilesCount());
   }
 
   private String destName(String dest) {

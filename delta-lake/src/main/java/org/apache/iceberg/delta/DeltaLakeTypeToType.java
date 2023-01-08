@@ -120,7 +120,6 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public Type atomic(DataType atomic) {
-    // TODO: pay attention to Delta's NullType, currently unhandled
     if (atomic instanceof BooleanType) {
       return Types.BooleanType.get();
 
