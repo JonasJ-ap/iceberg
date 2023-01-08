@@ -44,6 +44,15 @@ public interface MigrateDeltaLakeTable
    */
   MigrateDeltaLakeTable tableProperty(String name, String value);
 
+  /**
+   * Sets the location of the newly created Iceberg table. Default location is the same as the Delta
+   * Lake table.
+   *
+   * @param newTableLocation a path to the new table location
+   * @return this for method chaining
+   */
+  MigrateDeltaLakeTable tableLocation(String newTableLocation);
+
   /** The action result that contains a summary of the execution. */
   interface Result {
 

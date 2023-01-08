@@ -84,7 +84,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private final Catalog icebergCatalog;
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
-  private final String newTableLocation;
+  private String newTableLocation;
   private final HadoopFileIO hadoopFileIO;
 
   public BaseMigrateDeltaLakeTableAction(
@@ -92,19 +92,10 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       String deltaTableLocation,
       TableIdentifier newTableIdentifier,
       Configuration hadoopConfiguration) {
-    this(icebergCatalog, deltaTableLocation, newTableIdentifier, null, hadoopConfiguration);
-  }
-
-  public BaseMigrateDeltaLakeTableAction(
-      Catalog icebergCatalog,
-      String deltaTableLocation,
-      TableIdentifier newTableIdentifier,
-      String newTableLocation,
-      Configuration hadoopConfiguration) {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.newTableLocation = newTableLocation == null ? deltaTableLocation : newTableLocation;
+    this.newTableLocation = deltaTableLocation;
     this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
     this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
   }
@@ -118,6 +109,12 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   @Override
   public MigrateDeltaLakeTable tableProperty(String name, String value) {
     additionalPropertiesBuilder.put(name, value);
+    return this;
+  }
+
+  @Override
+  public MigrateDeltaLakeTable tableLocation(String newTableLocation) {
+    this.newTableLocation = newTableLocation;
     return this;
   }
 

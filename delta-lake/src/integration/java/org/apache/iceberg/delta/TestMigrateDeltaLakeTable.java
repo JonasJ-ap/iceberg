@@ -230,21 +230,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
         catalogAndIdent.catalog().name());
   }
 
-  public MigrateDeltaLakeTable migrateDeltaLakeTable(
-      String newTableIdentifier, String deltaTableLocation, String newTableLocation) {
-    String ctx = "delta lake migrate target";
-    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    Spark3Util.CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new MigrateDeltaLakeTableSparkAction(
-        spark,
-        deltaTableLocation,
-        catalogAndIdent.identifier().toString(),
-        catalogAndIdent.catalog().name(),
-        newTableLocation);
-  }
-
-  private class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
+  private static class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
     MigrateDeltaLakeTableSparkAction(
         SparkSession spark,
         String deltaTableLocation,
@@ -254,20 +240,6 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
           Spark3Util.loadIcebergCatalog(spark, catalogName),
           deltaTableLocation,
           TableIdentifier.parse(newTableIdentifier),
-          spark.sessionState().newHadoopConf());
-    }
-
-    MigrateDeltaLakeTableSparkAction(
-        SparkSession spark,
-        String deltaTableLocation,
-        String newTableIdentifier,
-        String catalogName,
-        String newTableLocation) {
-      super(
-          Spark3Util.loadIcebergCatalog(spark, catalogName),
-          deltaTableLocation,
-          TableIdentifier.parse(newTableIdentifier),
-          newTableLocation,
           spark.sessionState().newHadoopConf());
     }
   }
