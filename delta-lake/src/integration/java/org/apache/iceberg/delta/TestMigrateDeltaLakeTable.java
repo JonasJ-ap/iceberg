@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -49,8 +50,6 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
   private static final String NAMESPACE = "default";
-
-  private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
 
@@ -127,7 +126,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
         .forEach(
             i -> {
               List<SimpleRecord> record =
-                  Lists.newArrayList(new SimpleRecord(i, ALPHABET.substring(i, i + 1)));
+                  Lists.newArrayList(new SimpleRecord(i, UUID.randomUUID().toString()));
 
               Dataset<Row> df = spark.createDataFrame(record, SimpleRecord.class);
 
