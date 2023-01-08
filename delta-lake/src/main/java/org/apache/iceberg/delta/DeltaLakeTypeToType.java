@@ -36,6 +36,7 @@ import io.delta.standalone.types.StructField;
 import io.delta.standalone.types.StructType;
 import io.delta.standalone.types.TimestampType;
 import java.util.List;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -153,6 +154,6 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
       return Types.BinaryType.get();
     }
 
-    throw new UnsupportedOperationException("Not a supported type: " + atomic.getCatalogString());
+    throw new ValidationException("Not a supported type: %s", atomic.getCatalogString());
   }
 }
