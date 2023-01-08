@@ -330,8 +330,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
    *     (either absolute or relative)
    * @param tableRoot the root path of the delta table
    */
-  @VisibleForTesting
-  static String getFullFilePath(String path, String tableRoot) {
+  private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     if (dataFileUri.isAbsolute()) {
       return path;
