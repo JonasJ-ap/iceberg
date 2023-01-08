@@ -63,15 +63,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in an
+ * Takes a Delta Lake table's location and attempts to create an Iceberg table snapshot in an
  * optional user-specified location (default to the Delta Lake table's location) with a different
  * identifier.
  */
-public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
+public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotDeltaLakeTableAction.class);
 
-  private static final String MIGRATION_SOURCE_PROP = "migration_source";
+  private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String PARQUET_SUFFIX = ".parquet";
@@ -98,7 +98,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
    * @param newTableIdentifier the identifier of the new iceberg table
    * @param deltaLakeConfiguration the hadoop configuration to access the delta lake table
    */
-  public BaseMigrateDeltaLakeTableAction(
+  public BaseSnapshotDeltaLakeTableAction(
       Catalog icebergCatalog,
       String deltaTableLocation,
       TableIdentifier newTableIdentifier,
@@ -112,19 +112,19 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   @Override
-  public MigrateDeltaLakeTable tableProperties(Map<String, String> properties) {
+  public SnapshotDeltaLakeTable tableProperties(Map<String, String> properties) {
     additionalPropertiesBuilder.putAll(properties);
     return this;
   }
 
   @Override
-  public MigrateDeltaLakeTable tableProperty(String name, String value) {
+  public SnapshotDeltaLakeTable tableProperty(String name, String value) {
     additionalPropertiesBuilder.put(name, value);
     return this;
   }
 
   @Override
-  public MigrateDeltaLakeTable tableLocation(String location) {
+  public SnapshotDeltaLakeTable tableLocation(String location) {
     this.newTableLocation = location;
     return this;
   }
@@ -148,7 +148,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         "Successfully loaded Iceberg metadata for {} files in {}",
         totalDataFiles,
         deltaTableLocation);
-    return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
+    return new BaseSnapshotDeltaLakeTableActionResult(totalDataFiles);
   }
 
   private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
@@ -316,7 +316,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
-            MIGRATION_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
+            SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
 
     return additionalPropertiesBuilder.build();
   }

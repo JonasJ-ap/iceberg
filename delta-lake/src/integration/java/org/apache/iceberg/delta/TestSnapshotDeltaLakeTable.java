@@ -48,7 +48,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
+public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "default";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
@@ -87,7 +87,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
 
   private String catalogName;
 
-  public TestMigrateDeltaLakeTable(
+  public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
     spark
@@ -171,7 +171,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
 
     catalogName = defaultSparkCatalog;
     String newTableIdentifier = destName("iceberg_table");
-    MigrateDeltaLakeTable.Result result =
+    SnapshotDeltaLakeTable.Result result =
         migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
 
     // Compare the results
@@ -181,7 +181,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     Assert.assertEquals(oldResults.size(), newResults.size());
     Assert.assertTrue(newResults.containsAll(oldResults));
     Assert.assertTrue(oldResults.containsAll(newResults));
-    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.migratedDataFilesCount());
+    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.snapshotDataFilesCount());
   }
 
   @Test
@@ -195,7 +195,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
 
     catalogName = defaultSparkCatalog;
     String newTableIdentifier = destName("iceberg_table_unpartitioned");
-    MigrateDeltaLakeTable.Result result =
+    SnapshotDeltaLakeTable.Result result =
         migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation).execute();
 
     // Compare the results
@@ -205,7 +205,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     Assert.assertEquals(oldResults.size(), newResults.size());
     Assert.assertTrue(newResults.containsAll(oldResults));
     Assert.assertTrue(oldResults.containsAll(newResults));
-    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.migratedDataFilesCount());
+    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.snapshotDataFilesCount());
   }
 
   private String destName(String dest) {
@@ -216,21 +216,21 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     }
   }
 
-  private MigrateDeltaLakeTable migrateDeltaLakeTable(
+  private SnapshotDeltaLakeTable migrateDeltaLakeTable(
       String newTableIdentifier, String deltaTableLocation) {
     String ctx = "delta lake migrate target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new MigrateDeltaLakeTableSparkAction(
+    return new SnapshotDeltaLakeTableSparkAction(
         spark,
         deltaTableLocation,
         catalogAndIdent.identifier().toString(),
         catalogAndIdent.catalog().name());
   }
 
-  private static class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
-    MigrateDeltaLakeTableSparkAction(
+  private static class SnapshotDeltaLakeTableSparkAction extends BaseSnapshotDeltaLakeTableAction {
+    SnapshotDeltaLakeTableSparkAction(
         SparkSession spark,
         String deltaTableLocation,
         String newTableIdentifier,
