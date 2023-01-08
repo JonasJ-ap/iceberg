@@ -55,7 +55,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -125,8 +124,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   @Override
-  public MigrateDeltaLakeTable tableLocation(String newTableLocation) {
-    this.newTableLocation = newTableLocation;
+  public MigrateDeltaLakeTable tableLocation(String location) {
+    this.newTableLocation = location;
     return this;
   }
 
