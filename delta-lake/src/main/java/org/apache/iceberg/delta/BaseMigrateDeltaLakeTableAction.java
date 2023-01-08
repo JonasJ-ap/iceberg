@@ -85,19 +85,31 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
   private String newTableLocation;
-  private final HadoopFileIO hadoopFileIO;
+  private final HadoopFileIO deltaLakeFileIO;
 
+  /**
+   * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
+   * log through the table's path, create a new iceberg table using the given icebergCatalog and
+   * newTableIdentifier, and commit all changes in one iceberg transaction.
+   *
+   * <p>The new table will only be created if the snapshot is successful.
+   *
+   * @param icebergCatalog the iceberg catalog to create the iceberg table
+   * @param deltaTableLocation the delta lake table's path
+   * @param newTableIdentifier the identifier of the new iceberg table
+   * @param deltaLakeConfiguration the hadoop configuration to access the delta lake table
+   */
   public BaseMigrateDeltaLakeTableAction(
       Catalog icebergCatalog,
       String deltaTableLocation,
       TableIdentifier newTableIdentifier,
-      Configuration hadoopConfiguration) {
+      Configuration deltaLakeConfiguration) {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
     this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
-    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
+    this.deltaLog = DeltaLog.forTable(deltaLakeConfiguration, deltaTableLocation);
+    this.deltaLakeFileIO = new HadoopFileIO(deltaLakeConfiguration);
   }
 
   @Override
@@ -251,7 +263,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
-    InputFile file = hadoopFileIO.newInputFile(fullFilePath);
+    InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
