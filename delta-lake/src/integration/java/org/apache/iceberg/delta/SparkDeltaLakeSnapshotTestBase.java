@@ -49,8 +49,6 @@ import org.junit.rules.TemporaryFolder;
 
 @SuppressWarnings("VisibilityModifier")
 public abstract class SparkDeltaLakeSnapshotTestBase {
-  protected static final Object ANY = new Object();
-
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;

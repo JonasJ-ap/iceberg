@@ -25,16 +25,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.After;
 import org.junit.Assert;
@@ -141,7 +137,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   @After
-  public void after() throws IOException {
+  public void after() {
     // Drop the hive table.
     spark.sql(
         String.format(
@@ -161,7 +157,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table");
     SnapshotDeltaLakeTable.Result result =
-        migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
+        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, partitionedLocation)
+            .execute();
 
     // Compare the results
     List<Row> oldResults = spark.sql("SELECT * FROM " + partitionedIdentifier).collectAsList();
@@ -183,7 +181,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_unpartitioned");
     SnapshotDeltaLakeTable.Result result =
-        migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation).execute();
+        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, unpartitionedLocation)
+            .execute();
 
     // Compare the results
     List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
@@ -196,33 +196,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   private String destName(String catalogName, String dest) {
-    return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
-  }
-
-  private SnapshotDeltaLakeTable migrateDeltaLakeTable(
-      String newTableIdentifier, String deltaTableLocation) {
-    String ctx = "delta lake migrate target";
-    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    Spark3Util.CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new SnapshotDeltaLakeTableSparkAction(
-        spark,
-        deltaTableLocation,
-        catalogAndIdent.identifier().toString(),
-        catalogAndIdent.catalog().name());
-  }
-
-  private static class SnapshotDeltaLakeTableSparkAction extends BaseSnapshotDeltaLakeTableAction {
-    SnapshotDeltaLakeTableSparkAction(
-        SparkSession spark,
-        String deltaTableLocation,
-        String newTableIdentifier,
-        String catalogName) {
-      super(
-          Spark3Util.loadIcebergCatalog(spark, catalogName),
-          deltaTableLocation,
-          TableIdentifier.parse(newTableIdentifier),
-          spark.sessionState().newHadoopConf());
+    if (catalogName.equals(defaultSparkCatalog)) {
+      return NAMESPACE + "." + catalogName + "_" + dest;
     }
+    return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
   }
 }
