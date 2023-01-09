@@ -25,12 +25,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.After;
 import org.junit.Assert;
@@ -40,12 +44,12 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotDeltaLakeTable.class);
+  private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
+  private static final String DELTA_SOURCE_VALUE = "delta";
+  private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String NAMESPACE = "default";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
@@ -72,14 +76,16 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-  @Rule public TemporaryFolder other = new TemporaryFolder();
+  @Rule public TemporaryFolder temp1 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp2 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp3 = new TemporaryFolder();
 
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
 
   private String partitionedLocation;
   private String unpartitionedLocation;
+  private String newIcebergTableLocation;
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -90,10 +96,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @Before
   public void before() {
     try {
-      File partitionedFolder = temp.newFolder();
-      File unpartitionedFolder = other.newFolder();
+      File partitionedFolder = temp1.newFolder();
+      File unpartitionedFolder = temp2.newFolder();
+      File newIcebergTableFolder = temp3.newFolder();
       partitionedLocation = partitionedFolder.toURI().toString();
       unpartitionedLocation = unpartitionedFolder.toURI().toString();
+      newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -148,13 +156,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   @Test
-  public void testMigratePartitioned() {
-    // This will test the scenario that the user switches the configuration and sets the default
-    // catalog to be Iceberg
-    // AFTER they had made it Delta and written a delta table there
-    DeltaLog deltaLog =
-        DeltaLog.forTable(spark.sessionState().newHadoopConf(), partitionedLocation);
-
+  public void testBasicSnapshotPartitioned() {
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table");
     SnapshotDeltaLakeTable.Result result =
         SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
@@ -162,16 +164,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
 
     checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
   }
 
   @Test
-  public void testMigrateUnpartitioned() {
-    // This will test the scenario that the user switches the configuration and sets the default
-    // catalog to be Iceberg
-    // AFTER they had made it Delta and written a delta table there
-    DeltaLog deltaLog =
-        DeltaLog.forTable(spark.sessionState().newHadoopConf(), unpartitionedLocation);
-
+  public void testBasicSnapshotUnpartitioned() {
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_unpartitioned");
     SnapshotDeltaLakeTable.Result result =
         SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
@@ -180,13 +177,39 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     checkSnapshotIntegrity(
         unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
   }
 
-  private String destName(String catalogName, String dest) {
-    if (catalogName.equals(defaultSparkCatalog)) {
-      return NAMESPACE + "." + catalogName + "_" + dest;
-    }
-    return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
+  @Test
+  public void testSnapshotWithNewLocation() {
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_new_location");
+    SnapshotDeltaLakeTable.Result result =
+        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, partitionedLocation)
+            .tableLocation(newIcebergTableLocation)
+            .execute();
+
+    checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
+  }
+
+  @Test
+  public void testSnapshotWithAdditionalProperties() {
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_additional_properties");
+    SnapshotDeltaLakeTable.Result result =
+        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, unpartitionedLocation)
+            .tableProperty("test1", "test1")
+            .tableProperties(ImmutableMap.of("test2", "test2", "test3", "test3", "test4", "test4"))
+            .execute();
+
+    checkSnapshotIntegrity(
+        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
+    checkIcebergTableProperties(
+        newTableIdentifier,
+        ImmutableMap.of("test1", "test1", "test2", "test2", "test3", "test3", "test4", "test4"),
+        unpartitionedLocation);
   }
 
   private void checkSnapshotIntegrity(
@@ -215,5 +238,48 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         "The number of files in the delta table should be the same as the number of files in the snapshot iceberg table",
         deltaLog.update().getAllFiles().size(),
         snapshotReport.snapshotDataFilesCount());
+  }
+
+  private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    Assert.assertEquals(
+        "The iceberg table should have the expected location",
+        expectedLocation,
+        icebergTable.location());
+  }
+
+  private void checkIcebergTableProperties(
+      String icebergTableIdentifier,
+      Map<String, String> expectedAdditionalProperties,
+      String deltaTableLocation) {
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    ImmutableMap.Builder<String, String> expectedPropertiesBuilder = ImmutableMap.builder();
+    // The snapshot action will put some fixed properties to the table
+    expectedPropertiesBuilder.put(SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE);
+    expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
+    ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
+    Assert.assertTrue(
+        "The snapshot iceberg table should have the expected properties, both default and user added ones",
+        icebergTable.properties().entrySet().containsAll(expectedProperties.entrySet()));
+    Assert.assertTrue(
+        "The snapshot iceberg table's property should contains the original location",
+        icebergTable.properties().containsKey(ORIGINAL_LOCATION_PROP)
+            && icebergTable.properties().get(ORIGINAL_LOCATION_PROP).equals(deltaTableLocation));
+  }
+
+  private Table getIcebergTable(String icebergTableIdentifier) {
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(
+            "test catalog", spark, icebergTableIdentifier, defaultCatalog);
+    return Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name())
+        .loadTable(TableIdentifier.parse(catalogAndIdent.identifier().toString()));
+  }
+
+  private String destName(String catalogName, String dest) {
+    if (catalogName.equals(defaultSparkCatalog)) {
+      return NAMESPACE + "." + catalogName + "_" + dest;
+    }
+    return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
   }
 }
