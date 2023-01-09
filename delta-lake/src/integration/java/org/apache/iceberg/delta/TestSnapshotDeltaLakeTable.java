@@ -161,14 +161,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, partitionedLocation)
             .execute();
 
-    // Compare the results
-    List<Row> oldResults = spark.sql("SELECT * FROM " + partitionedIdentifier).collectAsList();
-    List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
-
-    Assert.assertEquals(oldResults.size(), newResults.size());
-    Assert.assertTrue(newResults.containsAll(oldResults));
-    Assert.assertTrue(oldResults.containsAll(newResults));
-    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.snapshotDataFilesCount());
+    checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
   }
 
   @Test
@@ -185,14 +178,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                 spark, newTableIdentifier, unpartitionedLocation)
             .execute();
 
-    // Compare the results
-    List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
-    List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
-
-    Assert.assertEquals(oldResults.size(), newResults.size());
-    Assert.assertTrue(newResults.containsAll(oldResults));
-    Assert.assertTrue(oldResults.containsAll(newResults));
-    Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.snapshotDataFilesCount());
+    checkSnapshotIntegrity(
+        unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
   }
 
   private String destName(String catalogName, String dest) {
@@ -200,5 +187,33 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       return NAMESPACE + "." + catalogName + "_" + dest;
     }
     return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
+  }
+
+  private void checkSnapshotIntegrity(
+      String deltaTableLocation,
+      String deltaTableIdentifier,
+      String icebergTableIdentifier,
+      SnapshotDeltaLakeTable.Result snapshotReport) {
+    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+
+    List<Row> deltaTableContents =
+        spark.sql("SELECT * FROM " + deltaTableIdentifier).collectAsList();
+    List<Row> icebergTableContents =
+        spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
+
+    Assert.assertEquals(
+        "The original table and the transformed one should have the same size",
+        deltaTableContents.size(),
+        icebergTableContents.size());
+    Assert.assertTrue(
+        "The original table and the transformed one should have the same contents",
+        icebergTableContents.containsAll(deltaTableContents));
+    Assert.assertTrue(
+        "The original table and the transformed one should have the same contents",
+        deltaTableContents.containsAll(icebergTableContents));
+    Assert.assertEquals(
+        "The number of files in the delta table should be the same as the number of files in the snapshot iceberg table",
+        deltaLog.update().getAllFiles().size(),
+        snapshotReport.snapshotDataFilesCount());
   }
 }
