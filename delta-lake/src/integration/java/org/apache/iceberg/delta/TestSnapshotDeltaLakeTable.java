@@ -34,9 +34,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.After;
 import org.junit.Assert;
@@ -46,19 +44,24 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
+  private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotDeltaLakeTable.class);
   private static final String NAMESPACE = "default";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
+  private static final String defaultSparkCatalog = "spark_catalog";
+  private static final String icebergCatalogName = "iceberg_hive";
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {
-        "delta",
-        DeltaCatalog.class.getName(),
+        icebergCatalogName,
+        SparkSessionCatalog.class.getName(),
         ImmutableMap.of(
             "type",
             "hive",
@@ -79,23 +82,13 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
 
-  private final String defaultSparkCatalog = "spark_catalog";
   private String partitionedLocation;
   private String unpartitionedLocation;
-  private final String type;
-  private TableCatalog catalog;
-
-  private String catalogName;
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    spark
-        .conf()
-        .set("spark.sql.catalog." + defaultSparkCatalog, SparkSessionCatalog.class.getName());
-    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
-    this.type = config.get("type");
-    this.catalogName = catalogName;
+    spark.conf().set("spark.sql.catalog." + defaultSparkCatalog, DeltaCatalog.class.getName());
   }
 
   @Before
@@ -109,14 +102,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       throw new RuntimeException(e);
     }
 
-    partitionedIdentifier = destName(partitionedTableName);
-    unpartitionedIdentifier = destName(unpartitionedTableName);
-
-    CatalogExtension delta =
-        (CatalogExtension) spark.sessionState().catalogManager().catalog("delta");
-    // This needs to be set, otherwise Delta operations fail as the catalog is designed to override
-    // the default catalog (spark_catalog).
-    delta.setDelegateCatalog(spark.sessionState().catalogManager().currentCatalog());
+    partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
+    unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
 
     spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
@@ -156,8 +143,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @After
   public void after() throws IOException {
     // Drop the hive table.
-    spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(partitionedTableName)));
-    spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(unpartitionedTableName)));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, partitionedTableName)));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, unpartitionedTableName)));
   }
 
   @Test
@@ -167,10 +158,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     // AFTER they had made it Delta and written a delta table there
     DeltaLog deltaLog =
         DeltaLog.forTable(spark.sessionState().newHadoopConf(), partitionedLocation);
-    spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
 
-    catalogName = defaultSparkCatalog;
-    String newTableIdentifier = destName("iceberg_table");
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table");
     SnapshotDeltaLakeTable.Result result =
         migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
 
@@ -191,10 +180,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     // AFTER they had made it Delta and written a delta table there
     DeltaLog deltaLog =
         DeltaLog.forTable(spark.sessionState().newHadoopConf(), unpartitionedLocation);
-    spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
 
-    catalogName = defaultSparkCatalog;
-    String newTableIdentifier = destName("iceberg_table_unpartitioned");
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_unpartitioned");
     SnapshotDeltaLakeTable.Result result =
         migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation).execute();
 
@@ -208,12 +195,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Assert.assertEquals(deltaLog.update().getAllFiles().size(), result.snapshotDataFilesCount());
   }
 
-  private String destName(String dest) {
-    if (catalogName.equals("spark_catalog")) {
-      return NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
-    } else {
-      return catalogName + "." + NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
-    }
+  private String destName(String catalogName, String dest) {
+    return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
   }
 
   private SnapshotDeltaLakeTable migrateDeltaLakeTable(
