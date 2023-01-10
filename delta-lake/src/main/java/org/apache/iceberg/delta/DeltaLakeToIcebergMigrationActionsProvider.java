@@ -18,17 +18,32 @@
  */
 package org.apache.iceberg.delta;
 
+import org.apache.iceberg.catalog.TableIdentifier;
+
 /**
  * An API that should be implemented by query engine integrations that want to support snapshotting
  * from Delta Lake table to Iceberg table.
  */
 public interface DeltaLakeToIcebergMigrationActionsProvider {
 
-  /** Initiates an action to snapshot an existing Delta Lake table to an Iceberg table. */
-  default SnapshotDeltaLakeTable snapshotDeltaLakeTable(String sourceTableLocation) {
-    return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation);
+  /**
+   * Initiates an action to snapshot an existing Delta Lake table to an Iceberg table.
+   *
+   * @param tableIdent the identifier of the Iceberg table
+   * @param sourceTableLocation the location of the Delta Lake table
+   * @return a {@link SnapshotDeltaLakeTable} action
+   */
+  default SnapshotDeltaLakeTable snapshotDeltaLakeTable(
+      String tableIdent, String sourceTableLocation) {
+    return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation)
+        .as(TableIdentifier.parse(tableIdent));
   }
 
+  /**
+   * get the default implementation of {@link DeltaLakeToIcebergMigrationActionsProvider}
+   *
+   * @return an instance of {@link DefaultDeltaLakeToIcebergMigrationActions}
+   */
   static DeltaLakeToIcebergMigrationActionsProvider getDefault() {
     return new DefaultDeltaLakeToIcebergMigrationActions();
   }

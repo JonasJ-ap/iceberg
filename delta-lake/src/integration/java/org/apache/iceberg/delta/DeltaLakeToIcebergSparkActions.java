@@ -24,18 +24,29 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
 /** An example class shows how to use the delta lake migration actions in SparkContext. */
-class DeltaLakeToIcebergMigrationSparkIntegration {
+public class DeltaLakeToIcebergSparkActions implements DeltaLakeToIcebergMigrationActionsProvider {
+  private final SparkSession spark;
 
-  private DeltaLakeToIcebergMigrationSparkIntegration() {}
+  private DeltaLakeToIcebergSparkActions(SparkSession spark) {
+    this.spark = spark;
+  }
 
-  static SnapshotDeltaLakeTable snapshotDeltaLakeTable(
-      SparkSession spark, String newTableIdentifier, String deltaTableLocation) {
+  public static DeltaLakeToIcebergSparkActions get(SparkSession spark) {
+    return new DeltaLakeToIcebergSparkActions(spark);
+  }
+
+  public static DeltaLakeToIcebergSparkActions get() {
+    return new DeltaLakeToIcebergSparkActions(SparkSession.active());
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable snapshotDeltaLakeTable(
+      String tableIdent, String sourceTableLocation) {
     String ctx = "delta lake snapshot target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return DeltaLakeToIcebergMigrationActionsProvider.getDefault()
-        .snapshotDeltaLakeTable(deltaTableLocation)
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation)
         .as(TableIdentifier.parse(catalogAndIdent.identifier().toString()))
         .deltaLakeConfiguration(spark.sessionState().newHadoopConf())
         .icebergCatalog(Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()));
