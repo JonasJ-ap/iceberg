@@ -25,18 +25,27 @@ package org.apache.iceberg.delta;
  */
 public interface DeltaLakeToIcebergMigrationActionsProvider {
 
-  /** Initiates an action to snapshot an existing Delta Lake table to an Iceberg table. */
+  /**
+   * Initiates an action to snapshot an existing Delta Lake table to an Iceberg table.
+   *
+   * @param sourceTableLocation the location of the Delta Lake table
+   * @return a {@link SnapshotDeltaLakeTable} action
+   */
   default SnapshotDeltaLakeTable snapshotDeltaLakeTable(String sourceTableLocation) {
     return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation);
   }
 
+  /**
+   * Get the default implementation of {@link DeltaLakeToIcebergMigrationActionsProvider}
+   *
+   * @return an instance with access to all default actions
+   */
   static DeltaLakeToIcebergMigrationActionsProvider defaultActions() {
     return DefaultDeltaLakeToIcebergMigrationActions.defaultMigrationActions();
   }
 
   class DefaultDeltaLakeToIcebergMigrationActions
       implements DeltaLakeToIcebergMigrationActionsProvider {
-
     private static final DefaultDeltaLakeToIcebergMigrationActions defaultMigrationActions =
         new DefaultDeltaLakeToIcebergMigrationActions();
 
