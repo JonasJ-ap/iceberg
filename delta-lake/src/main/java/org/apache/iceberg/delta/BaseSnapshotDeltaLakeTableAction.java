@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import shadedelta.org.apache.parquet.Preconditions;
 
 /**
  * Takes a Delta Lake table's location and attempts to create an Iceberg table snapshot in an
@@ -79,12 +80,12 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
   private static final String ORC_SUFFIX = ".orc";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
-  private final DeltaLog deltaLog;
-  private final Catalog icebergCatalog;
+  private DeltaLog deltaLog;
+  private Catalog icebergCatalog;
   private final String deltaTableLocation;
-  private final TableIdentifier newTableIdentifier;
+  private TableIdentifier newTableIdentifier;
   private String newTableLocation;
-  private final HadoopFileIO deltaLakeFileIO;
+  private HadoopFileIO deltaLakeFileIO;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -93,22 +94,11 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
    *
    * <p>The new table will only be created if the snapshot is successful.
    *
-   * @param icebergCatalog the iceberg catalog to create the iceberg table
    * @param deltaTableLocation the delta lake table's path
-   * @param newTableIdentifier the identifier of the new iceberg table
-   * @param deltaLakeConfiguration the hadoop configuration to access the delta lake table
    */
-  public BaseSnapshotDeltaLakeTableAction(
-      Catalog icebergCatalog,
-      String deltaTableLocation,
-      TableIdentifier newTableIdentifier,
-      Configuration deltaLakeConfiguration) {
-    this.icebergCatalog = icebergCatalog;
+  public BaseSnapshotDeltaLakeTableAction(String deltaTableLocation) {
     this.deltaTableLocation = deltaTableLocation;
-    this.newTableIdentifier = newTableIdentifier;
     this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(deltaLakeConfiguration, deltaTableLocation);
-    this.deltaLakeFileIO = new HadoopFileIO(deltaLakeConfiguration);
   }
 
   @Override
@@ -130,7 +120,32 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
   }
 
   @Override
+  public SnapshotDeltaLakeTable as(TableIdentifier identifier) {
+    this.newTableIdentifier = identifier;
+    return this;
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable icebergCatalog(Catalog catalog) {
+    this.icebergCatalog = catalog;
+    return this;
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
+    this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
+    this.deltaLakeFileIO = new HadoopFileIO(conf);
+    return this;
+  }
+
+  @Override
   public Result execute() {
+    Preconditions.checkArgument(
+        icebergCatalog != null && newTableIdentifier != null,
+        "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
+    Preconditions.checkArgument(
+        deltaLog != null && deltaLakeFileIO != null,
+        "Make sure to configure the action with a valid deltaLakeConfiguration");
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
