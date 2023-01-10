@@ -23,6 +23,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
+/** An example class shows how to use the delta lake migration actions in SparkContext. */
 class DeltaLakeToIcebergMigrationSparkIntegration {
 
   private DeltaLakeToIcebergMigrationSparkIntegration() {}
@@ -33,7 +34,8 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new BaseSnapshotDeltaLakeTableAction(deltaTableLocation)
+    return DeltaLakeToIcebergMigrationActionsProvider.getDefault()
+        .snapshotDeltaLakeTable(deltaTableLocation)
         .as(TableIdentifier.parse(catalogAndIdent.identifier().toString()))
         .deltaLakeConfiguration(spark.sessionState().newHadoopConf())
         .icebergCatalog(Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()));
