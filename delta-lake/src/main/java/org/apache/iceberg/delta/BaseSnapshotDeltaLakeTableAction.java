@@ -55,13 +55,13 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import shadedelta.org.apache.parquet.Preconditions;
 
 /**
  * Takes a Delta Lake table's location and attempts to create an Iceberg table snapshot in an
@@ -269,12 +269,10 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
     }
 
     String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
-
-    if (partitionValues == null) {
-      // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new IllegalArgumentException(
-          String.format("File %s does not specify a partitionValues", fullFilePath));
-    }
+    // For unpartitioned table, the partitionValues should be an empty map rather than null
+    Preconditions.checkArgument(
+        partitionValues != null,
+        String.format("File %s does not specify a partitionValues", fullFilePath));
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);

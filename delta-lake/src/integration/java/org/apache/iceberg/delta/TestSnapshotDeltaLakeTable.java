@@ -146,7 +146,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @After
   public void after() {
-    // Drop the hive table.
+    // Drop delta lake tables.
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, partitionedTableName)));
