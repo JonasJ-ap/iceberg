@@ -19,8 +19,9 @@
 package org.apache.iceberg.delta;
 
 /**
- * An API that should be implemented by query engine integrations that want to support snapshotting
- * from Delta Lake table to Iceberg table.
+ * An API that provide actions for migration from a delta lake table to an iceberg table. Query
+ * engines can use {@code defaultActions()} to access default action implementations, or implement
+ * this provider to supply a different implementation if necessary.
  */
 public interface DeltaLakeToIcebergMigrationActionsProvider {
 

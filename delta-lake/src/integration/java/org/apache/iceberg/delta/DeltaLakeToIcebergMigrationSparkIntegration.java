@@ -28,6 +28,15 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
 
   private DeltaLakeToIcebergMigrationSparkIntegration() {}
 
+  /**
+   * Example of creating a snapshot a delta table to iceberg table action in SparkContext.
+   *
+   * @param spark a SparkSession with iceberg catalog configured.
+   * @param newTableIdentifier can be both 2 parts and 3 parts identifier, if it is 2 parts, the
+   *     default spark catalog will be used
+   * @param deltaTableLocation the location of the delta table
+   * @return an instance of snapshot delta lake table action.
+   */
   static SnapshotDeltaLakeTable snapshotDeltaLakeTable(
       SparkSession spark, String newTableIdentifier, String deltaTableLocation) {
     String ctx = "delta lake snapshot target";
