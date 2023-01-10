@@ -215,12 +215,20 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithAdditionalProperties() {
+    // add some properties to the original delta table
+    spark.sql(
+        "ALTER TABLE "
+            + unpartitionedIdentifier
+            + " SET TBLPROPERTIES ('foo'='bar', 'test0'='test0')");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_additional_properties");
     SnapshotDeltaLakeTable.Result result =
         SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
             .tableProperty("test1", "test1")
-            .tableProperties(ImmutableMap.of("test2", "test2", "test3", "test3", "test4", "test4"))
+            .tableProperties(
+                ImmutableMap.of(
+                    "test2", "test2", "test3", "test3", "test4",
+                    "test4")) // add additional iceberg table properties
             .execute();
 
     checkSnapshotIntegrity(
@@ -228,7 +236,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
     checkIcebergTableProperties(
         newTableIdentifier,
-        ImmutableMap.of("test1", "test1", "test2", "test2", "test3", "test3", "test4", "test4"),
+        ImmutableMap.of(
+            "foo", "bar", "test0", "test0", "test1", "test1", "test2", "test2", "test3", "test3",
+            "test4", "test4"),
         unpartitionedLocation);
   }
 
@@ -296,7 +306,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
     ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
     Assert.assertTrue(
-        "The snapshot iceberg table should have the expected properties, both default and user added ones",
+        "The snapshot iceberg table should have the expected properties, all in original delta lake table, added by the action and user added ones",
         icebergTable.properties().entrySet().containsAll(expectedProperties.entrySet()));
     Assert.assertTrue(
         "The snapshot iceberg table's property should contains the original location",
