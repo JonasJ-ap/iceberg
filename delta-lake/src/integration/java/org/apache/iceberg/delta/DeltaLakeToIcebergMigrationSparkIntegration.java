@@ -34,7 +34,7 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return DeltaLakeToIcebergMigrationActionsProvider.getDefault()
+    return DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
         .snapshotDeltaLakeTable(deltaTableLocation)
         .as(TableIdentifier.parse(catalogAndIdent.identifier().toString()))
         .deltaLakeConfiguration(spark.sessionState().newHadoopConf())

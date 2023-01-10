@@ -29,12 +29,20 @@ public interface DeltaLakeToIcebergMigrationActionsProvider {
     return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation);
   }
 
-  static DeltaLakeToIcebergMigrationActionsProvider getDefault() {
-    return new DefaultDeltaLakeToIcebergMigrationActions();
+  static DeltaLakeToIcebergMigrationActionsProvider defaultActions() {
+    return DefaultDeltaLakeToIcebergMigrationActions.defaultMigrationActions();
   }
 
   class DefaultDeltaLakeToIcebergMigrationActions
       implements DeltaLakeToIcebergMigrationActionsProvider {
-    DefaultDeltaLakeToIcebergMigrationActions() {}
+
+    private static final DefaultDeltaLakeToIcebergMigrationActions defaultMigrationActions =
+        new DefaultDeltaLakeToIcebergMigrationActions();
+
+    private DefaultDeltaLakeToIcebergMigrationActions() {}
+
+    static DefaultDeltaLakeToIcebergMigrationActions defaultMigrationActions() {
+      return defaultMigrationActions;
+    }
   }
 }
