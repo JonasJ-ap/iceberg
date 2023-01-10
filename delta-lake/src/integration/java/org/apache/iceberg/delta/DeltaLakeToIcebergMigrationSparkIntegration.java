@@ -23,9 +23,9 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
-class SnapshotDeltaLakeSparkIntegration {
+class DeltaLakeToIcebergMigrationSparkIntegration {
 
-  private SnapshotDeltaLakeSparkIntegration() {}
+  private DeltaLakeToIcebergMigrationSparkIntegration() {}
 
   static SnapshotDeltaLakeTable snapshotDeltaLakeTable(
       SparkSession spark, String newTableIdentifier, String deltaTableLocation) {
