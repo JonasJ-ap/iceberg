@@ -157,7 +157,22 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
             newTableLocation,
             destTableProperties(updatedSnapshot, deltaTableLocation));
 
-    long totalDataFiles = copyFromDeltaLakeToIceberg(icebergTransaction);
+    Iterator<VersionLog> versionLogIterator =
+        deltaLog.getChanges(
+            0, // retrieve actions starting from the initial version
+            false); // not throw exception when data loss detected
+    while (versionLogIterator.hasNext()) {
+      VersionLog versionLog = versionLogIterator.next();
+      commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
+    }
+    long totalDataFiles =
+        Long.parseLong(
+            icebergTransaction
+                .table()
+                .currentSnapshot()
+                .summary()
+                .get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+
     icebergTransaction.commitTransaction();
     LOG.info(
         "Successfully loaded Iceberg metadata for {} files in {}",
@@ -185,31 +200,25 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
     return builder.build();
   }
 
-  private long copyFromDeltaLakeToIceberg(Transaction transaction) {
-    Iterator<VersionLog> versionLogIterator =
-        deltaLog.getChanges(
-            0, // retrieve actions starting from the initial version
-            false); // not throw exception when data loss detected
-
-    while (versionLogIterator.hasNext()) {
-      VersionLog versionLog = versionLogIterator.next();
-      commitDeltaVersionLogToIcebergTransaction(versionLog, transaction);
-    }
-
-    return Long.parseLong(
-        transaction.table().currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-  }
-
+  /**
+   * Iterate through the {@code VersionLog} to determine the update type and commit the update to
+   * the given {@code Transaction}.
+   *
+   * <p>There are 3 cases:
+   *
+   * <p>1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
+   *
+   * <p>2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records of
+   * file(s) were removed)
+   *
+   * <p>3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
+   *
+   * @param versionLog the delta log version to commit to iceberg table transaction
+   * @param transaction the iceberg table transaction to commit to
+   */
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
     List<Action> actions = versionLog.getActions();
-
-    // We first need to iterate through to see what kind of transaction this was. There are 3
-    // cases:
-    // 1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
-    // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
-    // of file(s) were removed
-    // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
 
     // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
     Map<String, List<Action>> deltaLakeActionMap =
