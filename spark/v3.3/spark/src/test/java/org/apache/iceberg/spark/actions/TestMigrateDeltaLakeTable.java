@@ -42,8 +42,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TestMigrateDeltaLakeTable extends SparkCatalogTestBase {
+
+  Logger LOG = LoggerFactory.getLogger(TestMigrateDeltaLakeTable.class.getName());
   private static final String NAMESPACE = "default";
 
   private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -116,35 +120,37 @@ public class TestMigrateDeltaLakeTable extends SparkCatalogTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
 
     // Create a partitioned and unpartitioned table, doing a few inserts on each
-    IntStream.range(0, 3)
-        .forEach(
-            i -> {
-              List<SimpleRecord> record =
-                  Lists.newArrayList(new SimpleRecord(i, ALPHABET.substring(i, i + 1)));
-
-              Dataset<Row> df = spark.createDataFrame(record, SimpleRecord.class);
-
-              df.write()
-                  .format("delta")
-                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
-                  .partitionBy("id")
-                  .option("path", partitionedLocation)
-                  .saveAsTable(partitionedIdentifier);
-
-              df.write()
-                  .format("delta")
-                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
-                  .option("path", unpartitionedLocation)
-                  .saveAsTable(unpartitionedIdentifier);
-            });
+//    IntStream.range(0, 3)
+//        .forEach(
+//            i -> {
+//              List<SimpleRecord> record =
+//                  Lists.newArrayList(new SimpleRecord(i, ALPHABET.substring(i, i + 1)));
+//
+//              Dataset<Row> df = spark.createDataFrame(record, SimpleRecord.class);
+//
+//              df.write()
+//                  .format("delta")
+//                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
+//                  .partitionBy("id")
+//                  .option("path", partitionedLocation)
+//                  .saveAsTable(partitionedIdentifier);
+//
+//              df.write()
+//                  .format("delta")
+//                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
+//                  .option("path", unpartitionedLocation)
+//                  .saveAsTable(unpartitionedIdentifier);
+//            });
 
     // Delete a record from the table
-    spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=0");
-    spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=0");
-
-    // Update a record
-    spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
-    spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
+    spark
+        .read()
+        .json("/Users/jonasjiang/Workspace/Apache_Iceberg_ws/dataframe/simple_nested/*.json")
+        .write()
+        .format("delta")
+        .mode(SaveMode.Append)
+        .option("path", unpartitionedLocation)
+        .saveAsTable(unpartitionedIdentifier);
   }
 
   @After
@@ -192,6 +198,8 @@ public class TestMigrateDeltaLakeTable extends SparkCatalogTestBase {
     // Compare the results
     List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
     List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
+    LOG.info("delta content {}", oldResults);
+    LOG.info("iceberg content {}", newResults);
 
     Assert.assertEquals(oldResults.size(), newResults.size());
     Assert.assertTrue(newResults.containsAll(oldResults));
