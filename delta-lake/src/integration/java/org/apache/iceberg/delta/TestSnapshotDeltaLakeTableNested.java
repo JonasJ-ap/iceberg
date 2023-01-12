@@ -31,12 +31,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.After;
@@ -69,7 +74,7 @@ public class TestSnapshotDeltaLakeTableNested extends SparkDeltaLakeSnapshotTest
     return new Object[][] {
       new Object[] {
         icebergCatalogName,
-        SparkSessionCatalog.class.getName(),
+        SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type",
             "hive",
@@ -104,7 +109,7 @@ public class TestSnapshotDeltaLakeTableNested extends SparkDeltaLakeSnapshotTest
   }
 
   @Before
-  public void before() {
+  public void before() throws TableAlreadyExistsException {
     try {
       File partitionedFolder = temp1.newFolder();
       File unpartitionedFolder = temp2.newFolder();
@@ -120,7 +125,7 @@ public class TestSnapshotDeltaLakeTableNested extends SparkDeltaLakeSnapshotTest
 
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
-    externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
+    externalDataFilesIdentifier = destName(icebergCatalogName, externalDataFilesTableName);
 
     spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
@@ -150,6 +155,14 @@ public class TestSnapshotDeltaLakeTableNested extends SparkDeltaLakeSnapshotTest
         .mode(SaveMode.Append)
         .option("path", unpartitionedLocation)
         .saveAsTable(unpartitionedIdentifier);
+
+    spark
+        .read()
+        .json("/Users/jonasjiang/Workspace/Apache_Iceberg_ws/dataframe/simple_nested/*.json")
+        .writeTo(externalDataFilesIdentifier)
+        .create();
+    Table testTable = getIcebergTable(externalDataFilesIdentifier);
+    LOG.info("Reference: table schema {}", testTable.schema());
   }
 
   @After

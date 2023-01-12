@@ -63,9 +63,12 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetUtil {
   // not meant to be instantiated
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetUtil.class.getName());
   private ParquetUtil() {}
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
@@ -105,6 +108,9 @@ public class ParquetUtil {
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
+    LOG.info("test parquet util parquetTypeWithIds {}", parquetTypeWithIds.toString());
+    LOG.info("test parquet util group {}", parquetTypeWithIds.asGroupType().getOriginalType());
+    LOG.info("test parquet util fileSchema {}", fileSchema);
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
@@ -113,8 +119,10 @@ public class ParquetUtil {
     for (BlockMetaData block : blocks) {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
-
+      LOG.info("test parquet util {}", column.toString());
+      LOG.info("test parquet util column path {}", column.getPath().toString());
         Integer fieldId = fileSchema.aliasToId(column.getPath().toDotString());
+      LOG.info("test parquet util fieldId {}", fieldId);
         if (fieldId == null) {
           // fileSchema may contain a subset of columns present in the file
           // as we prune columns we could not assign ids

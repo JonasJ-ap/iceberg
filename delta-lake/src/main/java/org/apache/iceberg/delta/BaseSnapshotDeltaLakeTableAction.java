@@ -51,6 +51,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -148,6 +149,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         "Make sure to configure the action with a valid deltaLakeConfiguration");
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
+    LOG.info("test snapshot iceberg schema: {}", schema);
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
@@ -155,8 +157,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             schema,
             partitionSpec,
             newTableLocation,
-            destTableProperties(updatedSnapshot, deltaTableLocation));
-
+            destTableProperties(updatedSnapshot, deltaTableLocation, schema));
+    LOG.info("test snapshot transaction table schema {}", icebergTransaction.table().schema());
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -288,6 +290,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    LOG.info("test snapshot action namemapping string {}", nameMappingString);
     NameMapping nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
@@ -335,11 +338,12 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   }
 
   private Map<String, String> destTableProperties(
-      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation) {
+      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation, Schema schema) {
     additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
+    additionalPropertiesBuilder.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(MappingUtil.create(schema)));
 
     return additionalPropertiesBuilder.build();
   }

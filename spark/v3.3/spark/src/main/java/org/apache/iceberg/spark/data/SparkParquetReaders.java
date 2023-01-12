@@ -63,8 +63,12 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkParquetReaders {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkParquetReaders.class);
   private SparkParquetReaders() {}
 
   public static ParquetValueReader<InternalRow> buildReader(
@@ -76,6 +80,8 @@ public class SparkParquetReaders {
   public static ParquetValueReader<InternalRow> buildReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      LOG.info("Test spark reader schema {}", expectedSchema.asStruct());
+      LOG.info("Test spark reader file schema {}", fileSchema);
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(), fileSchema, new ReadBuilder(fileSchema, idToConstant));
