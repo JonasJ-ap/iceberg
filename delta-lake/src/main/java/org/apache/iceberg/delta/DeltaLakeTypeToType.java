@@ -51,7 +51,7 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
 
   DeltaLakeTypeToType(StructType root) {
     this.root = root;
-    this.nextId = root.getFields().length;
+    this.nextId = root.getFields().length + 1;
   }
 
   private int getNextId() {
@@ -72,8 +72,9 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
 
       int id;
       if (isRoot) {
-        // for new conversions, use ordinals for ids in the root struct
-        id = i;
+        // for new conversions, use ordinals for ids in the root struct, note that 0 is reserved for
+        // the root itself
+        id = i + 1;
       } else {
         id = getNextId();
       }

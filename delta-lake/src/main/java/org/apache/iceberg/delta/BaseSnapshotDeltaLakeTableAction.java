@@ -51,6 +51,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -155,7 +156,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             schema,
             partitionSpec,
             newTableLocation,
-            destTableProperties(updatedSnapshot, deltaTableLocation));
+            destTableProperties(updatedSnapshot, deltaTableLocation, schema));
 
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
@@ -335,12 +336,16 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   }
 
   private Map<String, String> destTableProperties(
-      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation) {
+      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation, Schema schema) {
     additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
-            SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
-
+            SNAPSHOT_SOURCE_PROP,
+            DELTA_SOURCE_VALUE,
+            ORIGINAL_LOCATION_PROP,
+            originalLocation,
+            TableProperties.DEFAULT_NAME_MAPPING,
+            NameMappingParser.toJson(MappingUtil.create(schema))));
     return additionalPropertiesBuilder.build();
   }
 
