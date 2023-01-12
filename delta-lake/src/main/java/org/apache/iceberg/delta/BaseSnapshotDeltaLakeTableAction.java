@@ -174,8 +174,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
                 .currentSnapshot()
                 .summary()
                 .get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-
+    icebergTransaction.table().updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema()))).commit();
     icebergTransaction.commitTransaction();
+    Table table = icebergCatalog.loadTable(newTableIdentifier);
+    LOG.info("test snapshot table schema after creation {}", table.schema());
     LOG.info(
         "Successfully created Iceberg table {} from delta lake table at {}, total data file count: {}",
         newTableIdentifier,
@@ -343,7 +345,6 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
-    additionalPropertiesBuilder.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(MappingUtil.create(schema)));
 
     return additionalPropertiesBuilder.build();
   }
