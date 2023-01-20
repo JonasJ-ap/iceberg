@@ -27,9 +27,11 @@ import io.delta.standalone.exceptions.DeltaConcurrentModificationException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -53,9 +55,14 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
+
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestSnapshotDeltaLakeTable.class.getName());
   private static final String row1 =
       "{\"name\":\"Michael\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
           + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ\",\"city\":\"Newark\"}},"
@@ -79,6 +86,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
           + "\"address_nested\":{\"current\":{\"state\":\"PA\",\"city\":\"Haha\"},\"previous\":{\"state\":\"NJ\"}},"
           + "\"properties\":{\"hair\":\"black\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"7\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
           + "[\"Spark\",\"Java\"]],\"id\":5,\"magic_number\":5.123123123123}";
+  private static final String newRow6 =
+      "{\"evolution1\":\"JamesSmith2\",\"evolution2\":{\"state\":\"CA2\",\"city\":\"LosAngles2\"}}";
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -199,10 +208,14 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     jsonList.add(row3);
     jsonList.add(row4);
     jsonList.add(row5);
+    List<String> jsonList2 = Lists.newArrayList();
+    jsonList2.add(newRow6);
     JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     SQLContext sqlContext = new SQLContext(javaSparkContext);
     JavaRDD<String> rdd = javaSparkContext.parallelize(jsonList);
+    JavaRDD<String> rdd2 = javaSparkContext.parallelize(jsonList2);
     Dataset<Row> df = sqlContext.read().json(rdd);
+    Dataset<Row> df2 = sqlContext.read().json(rdd2);
 
     // write to delta tables
     df.write()
@@ -231,6 +244,13 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     // Update a record
     spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
     spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
+
+    df2.write()
+        .format("delta")
+        .mode(SaveMode.Append)
+        .option("path", unpartitionedLocation)
+        .option("mergeSchema", "true")
+        .saveAsTable(unpartitionedIdentifier);
   }
 
   @After
@@ -273,6 +293,29 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkSnapshotIntegrity(
         unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
+
+    LOG.info(
+        "Current Iceberg Table {}", spark.table(newTableIdentifier).showString(100, 100, false));
+    Table table = getIcebergTable(newTableIdentifier);
+    Iterable<Snapshot> snapshotIt = table.snapshots();
+    Iterator<Snapshot> snapshotIterator = snapshotIt.iterator();
+    Snapshot snapshot0 = snapshotIterator.next();
+    LOG.info("Current Iceberg Table Snapshot {}", snapshot0.summary());
+    Snapshot snapshot1 = snapshotIterator.next();
+    LOG.info("Current Iceberg Table Snapshot {}", snapshot1.summary());
+    Snapshot snapshot2 = snapshotIterator.next();
+    LOG.info("Current Iceberg Table Snapshot {}", snapshot2.summary());
+    Snapshot snapshot3 = snapshotIterator.next();
+    LOG.info("Current Iceberg Table Snapshot {}", snapshot3.summary());
+    snapshotIt.forEach(
+        s ->
+            LOG.info(
+                "Test snapshot id {}, snapshot timestamp {}", s.snapshotId(), s.timestampMillis()));
+    table.manageSnapshots().setCurrentSnapshot(snapshot2.snapshotId()).commit();
+    LOG.info(
+        "Time travel Iceberg Table {}",
+        spark.table(newTableIdentifier).showString(100, 100, false));
+
     spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
