@@ -82,7 +82,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
-  private static final String NAMESPACE = "default";
+  private static final String NAMESPACE = "delta_conversion_test";
   private static final String defaultSparkCatalog = "spark_catalog";
   private static final String icebergCatalogName = "iceberg_hive";
   private String partitionedIdentifier;
@@ -188,6 +188,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
     checkpointTableLocation = checkpointTableFolder.toURI().toString();
 
+    spark.sql(String.format("CREATE DATABASE IF NOT EXISTS %s", NAMESPACE));
+
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
     externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
@@ -262,6 +264,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, checkpointTableName)));
+
+    spark.sql(String.format("DROP DATABASE IF EXISTS %s", NAMESPACE));
   }
 
   @Test
@@ -274,6 +278,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
   @Test
@@ -287,6 +292,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkSnapshotIntegrity(
         unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
   @Test
@@ -300,6 +306,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
   @Test
@@ -329,6 +336,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             "foo", "bar", "test0", "test0", "test1", "test1", "test2", "test2", "test3", "test3",
             "test4", "test4"),
         unpartitionedLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
   @Test
@@ -346,6 +354,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
   private void checkSnapshotIntegrity(
