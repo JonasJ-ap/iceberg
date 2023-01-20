@@ -88,13 +88,16 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
   private String externalDataFilesIdentifier;
+  private String checkpointIdentifier;
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
   private final String externalDataFilesTableName = "external_data_files_table";
+  public final String checkpointTableName = "checkpoint_table";
   private String partitionedLocation;
   private String unpartitionedLocation;
   private String newIcebergTableLocation;
   private String externalDataFilesTableLocation;
+  private String checkpointTableLocation;
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
@@ -120,6 +123,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @Rule public TemporaryFolder temp2 = new TemporaryFolder();
   @Rule public TemporaryFolder temp3 = new TemporaryFolder();
   @Rule public TemporaryFolder temp4 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp5 = new TemporaryFolder();
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -177,18 +181,22 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     File unpartitionedFolder = temp2.newFolder();
     File newIcebergTableFolder = temp3.newFolder();
     File externalDataFilesTableFolder = temp4.newFolder();
+    File checkpointTableFolder = temp5.newFolder();
     partitionedLocation = partitionedFolder.toURI().toString();
     unpartitionedLocation = unpartitionedFolder.toURI().toString();
     newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
     externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
+    checkpointTableLocation = checkpointTableFolder.toURI().toString();
 
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
     externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
+    checkpointIdentifier = destName(defaultSparkCatalog, checkpointTableName);
 
     spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", checkpointIdentifier));
 
     // hard code the dataframe
     List<String> jsonList = Lists.newArrayList();
@@ -222,6 +230,13 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .option("path", externalDataFilesTableLocation)
         .saveAsTable(externalDataFilesIdentifier);
 
+    df.write()
+        .format("delta")
+        .mode(SaveMode.Append)
+        .partitionBy("id")
+        .option("path", checkpointTableLocation)
+        .saveAsTable(checkpointIdentifier);
+
     // Delete a record from the table
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
@@ -240,6 +255,13 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, unpartitionedTableName)));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s",
+            destName(defaultSparkCatalog, externalDataFilesTableName)));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, checkpointTableName)));
   }
 
   @Test
