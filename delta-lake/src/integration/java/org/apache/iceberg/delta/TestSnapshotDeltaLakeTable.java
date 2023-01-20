@@ -259,8 +259,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, unpartitionedTableName)));
     spark.sql(
         String.format(
-            "DROP TABLE IF EXISTS %s",
-            destName(defaultSparkCatalog, externalDataFilesTableName)));
+            "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, externalDataFilesTableName)));
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, checkpointTableName)));
@@ -354,6 +353,34 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
+  }
+
+  @Test
+  public void testSnapshotTableWithCheckpoint() {
+    // Make 12 commits to force the formation of a checkpoint.
+    spark.sql("DELETE FROM " + checkpointIdentifier + " WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET id=3 WHERE id=1");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=3.5 WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=4.5 WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=5.5 WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=6.5 WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=7.5 WHERE id=3");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=8.5 WHERE id=4");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=9.5 WHERE id=4");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=10.5 WHERE id=5");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=3.51 WHERE id=2");
+    spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=3.52 WHERE id=2");
+
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_checkpoint");
+    SnapshotDeltaLakeTable.Result result =
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, checkpointTableLocation)
+            .execute();
+    checkSnapshotIntegrity(
+        checkpointTableLocation, checkpointIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, checkpointTableLocation);
+    checkDataFilePathsIntegrity(newTableIdentifier, checkpointTableLocation);
     spark.sql(String.format("DROP TABLE IF EXISTS %s", newTableIdentifier));
   }
 
