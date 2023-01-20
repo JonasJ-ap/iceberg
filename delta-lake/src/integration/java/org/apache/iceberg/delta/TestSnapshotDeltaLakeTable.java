@@ -92,7 +92,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
   private final String externalDataFilesTableName = "external_data_files_table";
-  public final String checkpointTableName = "checkpoint_table";
+  private final String checkpointTableName = "checkpoint_table";
   private String partitionedLocation;
   private String unpartitionedLocation;
   private String newIcebergTableLocation;
@@ -358,7 +358,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotTableWithCheckpoint() {
-    // Make 12 commits to force the formation of a checkpoint.
+    // Make 12 commits to form a checkpoint plus 2 additional commit.
     spark.sql("DELETE FROM " + checkpointIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + checkpointIdentifier + " SET id=3 WHERE id=1");
     spark.sql("UPDATE " + checkpointIdentifier + " SET magic_number=3.5 WHERE id=3");
