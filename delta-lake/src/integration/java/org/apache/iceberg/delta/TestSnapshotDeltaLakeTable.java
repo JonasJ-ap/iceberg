@@ -55,29 +55,6 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
-  private static final String row1 =
-      "{\"name\":\"Michael\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ\",\"city\":\"Newark\"}},"
-          + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-          + "[\"Spark\",\"Java\"]],\"id\":1,\"magic_number\":1.123123123123}";
-  private static final String row2 =
-      "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJos123123e\",\"state\":\"CA\"},{\"city\":\"Sand12312iago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"N12Y\",\"city\":\"NewY1231ork\"}},\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},"
-          + "\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":2,\"magic_number\":2.123123123123}";
-  private static final String row3 =
-      "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":"
-          + "[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":3,\"magic_number\":3.123123123123}";
-  private static final String row4 =
-      "{\"name\":\"John\",\"addresses\":[{\"city\":\"LA\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ123\"}},"
-          + "\"properties\":{\"hair\":\"b12rown\",\"eye\":\"bla3221ck\"},\"secondProp\":{\"height\":\"633\"},\"subjects\":"
-          + "[[\"Spark\",\"Java\"]],\"id\":4,\"magic_number\":4.123123123123}";
-  private static final String row5 =
-      "{\"name\":\"Jonas\",\"addresses\":[{\"city\":\"Pittsburgh\",\"state\":\"PA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"PA\",\"city\":\"Haha\"},\"previous\":{\"state\":\"NJ\"}},"
-          + "\"properties\":{\"hair\":\"black\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"7\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-          + "[\"Spark\",\"Java\"]],\"id\":5,\"magic_number\":5.123123123123}";
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -126,50 +103,6 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.conf().set("spark.sql.catalog." + defaultSparkCatalog, DeltaCatalog.class.getName());
   }
 
-  /**
-   * The test hardcode a nested dataframe to test the snapshot feature. The schema of created
-   * dataframe is:
-   *
-   * <pre>
-   *  root
-   *  |-- address_nested: struct (nullable = true)
-   *  |    |-- current: struct (nullable = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |    |-- previous: struct (nullable = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |-- addresses: array (nullable = true)
-   *  |    |-- element: struct (containsNull = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |-- id: long (nullable = true)
-   *  |-- magic_number: double (nullable = true)
-   *  |-- name: string (nullable = true)
-   *  |-- properties: struct (nullable = true)
-   *  |    |-- eye: string (nullable = true)
-   *  |    |-- hair: string (nullable = true)
-   *  |-- secondProp: struct (nullable = true)
-   *  |    |-- height: string (nullable = true)
-   *  |-- subjects: array (nullable = true)
-   *  |    |-- element: array (containsNull = true)
-   *  |    |    |-- element: string (containsNull = true)
-   * </pre>
-   *
-   * The dataframe content is (by calling df.show()):
-   *
-   * <pre>
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * |      address_nested|           addresses| id|  magic_number|   name|          properties|secondProp|            subjects|
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * |{{NewYork, NY}, {...|[{SanJose, CA}, {...|  1|1.123123123123|Michael|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |{{NewY1231ork, N1...|[{SanJos123123e, ...|  2|2.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |                null|[{SanJose, CA}, {...|  3|3.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |{{NewYork, NY}, {...|[{LA, CA}, {Sandi...|  4|4.123123123123|   John|{bla3221ck, b12rown}|     {633}|     [[Spark, Java]]|
-   * |{{Haha, PA}, {nul...|[{Pittsburgh, PA}...|  5|5.123123123123|  Jonas|      {black, black}|       {7}|[[Java, Scala, C+...|
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * </pre>
-   */
   @Before
   public void before() throws IOException {
     File partitionedFolder = temp1.newFolder();
@@ -192,16 +125,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
 
     // hard code the dataframe
-    List<String> jsonList = Lists.newArrayList();
-    jsonList.add(row1);
-    jsonList.add(row2);
-    jsonList.add(row3);
-    jsonList.add(row4);
-    jsonList.add(row5);
-    JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    SQLContext sqlContext = new SQLContext(javaSparkContext);
-    JavaRDD<String> rdd = javaSparkContext.parallelize(jsonList);
-    Dataset<Row> df = sqlContext.read().json(rdd);
+    Dataset<Row> df = nestedDataframe();
 
     // write to delta tables
     df.write()
@@ -455,5 +379,86 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     } else {
       return tableRoot + File.separator + path;
     }
+  }
+
+  /**
+   * Hardcode a nested dataframe to test the snapshot feature. The schema of created dataframe is:
+   *
+   * <pre>
+   *  root
+   *  |-- address_nested: struct (nullable = true)
+   *  |    |-- current: struct (nullable = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |    |-- previous: struct (nullable = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |-- addresses: array (nullable = true)
+   *  |    |-- element: struct (containsNull = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |-- id: long (nullable = true)
+   *  |-- magic_number: double (nullable = true)
+   *  |-- name: string (nullable = true)
+   *  |-- properties: struct (nullable = true)
+   *  |    |-- eye: string (nullable = true)
+   *  |    |-- hair: string (nullable = true)
+   *  |-- secondProp: struct (nullable = true)
+   *  |    |-- height: string (nullable = true)
+   *  |-- subjects: array (nullable = true)
+   *  |    |-- element: array (containsNull = true)
+   *  |    |    |-- element: string (containsNull = true)
+   * </pre>
+   *
+   * The dataframe content is (by calling df.show()):
+   *
+   * <pre>
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * |      address_nested|           addresses| id|  magic_number|   name|          properties|secondProp|            subjects|
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * |{{NewYork, NY}, {...|[{SanJose, CA}, {...|  1|1.123123123123|Michael|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |{{NewY1231ork, N1...|[{SanJos123123e, ...|  2|2.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |                null|[{SanJose, CA}, {...|  3|3.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |{{NewYork, NY}, {...|[{LA, CA}, {Sandi...|  4|4.123123123123|   John|{bla3221ck, b12rown}|     {633}|     [[Spark, Java]]|
+   * |{{Haha, PA}, {nul...|[{Pittsburgh, PA}...|  5|5.123123123123|  Jonas|      {black, black}|       {7}|[[Java, Scala, C+...|
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * </pre>
+   */
+  private Dataset<Row> nestedDataframe() {
+    final String row1 =
+        "{\"name\":\"Michael\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
+            + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ\",\"city\":\"Newark\"}},"
+            + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
+            + "[\"Spark\",\"Java\"]],\"id\":1,\"magic_number\":1.123123123123}";
+    final String row2 =
+        "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJos123123e\",\"state\":\"CA\"},{\"city\":\"Sand12312iago\",\"state\":\"CA\"}],"
+            + "\"address_nested\":{\"current\":{\"state\":\"N12Y\",\"city\":\"NewY1231ork\"}},\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},"
+            + "\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":2,\"magic_number\":2.123123123123}";
+    final String row3 =
+        "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
+            + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":"
+            + "[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":3,\"magic_number\":3.123123123123}";
+    final String row4 =
+        "{\"name\":\"John\",\"addresses\":[{\"city\":\"LA\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
+            + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ123\"}},"
+            + "\"properties\":{\"hair\":\"b12rown\",\"eye\":\"bla3221ck\"},\"secondProp\":{\"height\":\"633\"},\"subjects\":"
+            + "[[\"Spark\",\"Java\"]],\"id\":4,\"magic_number\":4.123123123123}";
+    final String row5 =
+        "{\"name\":\"Jonas\",\"addresses\":[{\"city\":\"Pittsburgh\",\"state\":\"PA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
+            + "\"address_nested\":{\"current\":{\"state\":\"PA\",\"city\":\"Haha\"},\"previous\":{\"state\":\"NJ\"}},"
+            + "\"properties\":{\"hair\":\"black\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"7\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
+            + "[\"Spark\",\"Java\"]],\"id\":5,\"magic_number\":5.123123123123}";
+
+    List<String> jsonList = Lists.newArrayList();
+    jsonList.add(row1);
+    jsonList.add(row2);
+    jsonList.add(row3);
+    jsonList.add(row4);
+    jsonList.add(row5);
+    JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    SQLContext sqlContext = new SQLContext(javaSparkContext);
+    JavaRDD<String> rdd = javaSparkContext.parallelize(jsonList);
+
+    return sqlContext.read().json(rdd);
   }
 }
