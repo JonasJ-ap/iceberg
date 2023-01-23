@@ -132,7 +132,6 @@ public class TestDeltaLakeTypeToType {
                     deltaNullTypeSchema, new DeltaLakeTypeToType(deltaNullTypeSchema)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
-
     Assertions.assertThatThrownBy(
             () ->
                 DeltaLakeDataTypeVisitor.visit(
