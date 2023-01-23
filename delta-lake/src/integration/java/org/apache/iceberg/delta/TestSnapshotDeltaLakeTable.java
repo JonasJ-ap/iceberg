@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
+
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Operation;
 import io.delta.standalone.OptimisticTransaction;
@@ -31,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,19 +69,23 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
   private String externalDataFilesIdentifier;
+  private String typeTestIdentifier;
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
   private final String externalDataFilesTableName = "external_data_files_table";
+  private final String typeTestTableName = "type_test_table";
   private final String snapshotPartitionedTableName = "iceberg_partitioned_table";
   private final String snapshotUnpartitionedTableName = "iceberg_unpartitioned_table";
   private final String snapshotExternalDataFilesTableName = "iceberg_external_data_files_table";
   private final String snapshotNewTableLocationTableName = "iceberg_new_table_location_table";
   private final String snapshotAdditionalPropertiesTableName =
       "iceberg_additional_properties_table";
+  private final String snapshotTypeTestTableName = "iceberg_type_test_table";
   private String partitionedLocation;
   private String unpartitionedLocation;
   private String newIcebergTableLocation;
   private String externalDataFilesTableLocation;
+  private String typeTestTableLocation;
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
@@ -102,6 +111,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @Rule public TemporaryFolder temp2 = new TemporaryFolder();
   @Rule public TemporaryFolder temp3 = new TemporaryFolder();
   @Rule public TemporaryFolder temp4 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp5 = new TemporaryFolder();
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -115,20 +125,24 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     File unpartitionedFolder = temp2.newFolder();
     File newIcebergTableFolder = temp3.newFolder();
     File externalDataFilesTableFolder = temp4.newFolder();
+    File typeTestTableFolder = temp5.newFolder();
     partitionedLocation = partitionedFolder.toURI().toString();
     unpartitionedLocation = unpartitionedFolder.toURI().toString();
     newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
     externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
+    typeTestTableLocation = typeTestTableFolder.toURI().toString();
 
     spark.sql(String.format("CREATE DATABASE IF NOT EXISTS %s", NAMESPACE));
 
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
     externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
+    typeTestIdentifier = destName(defaultSparkCatalog, typeTestTableName);
 
     spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", typeTestIdentifier));
 
     // hard code the dataframe
     Dataset<Row> df = nestedDataframe();
@@ -153,6 +167,23 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .option("path", externalDataFilesTableLocation)
         .saveAsTable(externalDataFilesIdentifier);
 
+    spark
+        .range(0, 10, 1, 10)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .write()
+        .format("delta")
+        .mode("append")
+        .option("path", typeTestTableLocation)
+        .saveAsTable(typeTestIdentifier);
+
     // Delete a record from the table
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
@@ -174,6 +205,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, externalDataFilesTableName)));
+    spark.sql(
+        String.format("DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, typeTestTableName)));
 
     // Drop iceberg tables.
     spark.sql(
@@ -195,6 +228,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         String.format(
             "DROP TABLE IF EXISTS %s",
             destName(icebergCatalogName, snapshotAdditionalPropertiesTableName)));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s", destName(icebergCatalogName, snapshotTypeTestTableName)));
 
     spark.sql(String.format("DROP DATABASE IF EXISTS %s", NAMESPACE));
   }
@@ -281,6 +317,22 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
+  }
+
+  @Test
+  public void testSupportedPrimitiveTypes() {
+    String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
+    SnapshotDeltaLakeTable.Result result =
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, typeTestTableLocation)
+            .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
+            .execute();
+    checkSnapshotIntegrity(typeTestTableLocation, typeTestIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, typeTestTableLocation);
+    checkIcebergTableProperties(
+        newTableIdentifier,
+        ImmutableMap.of(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false"),
+        typeTestTableLocation);
   }
 
   private void checkSnapshotIntegrity(
