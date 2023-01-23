@@ -178,6 +178,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
         .withColumn("booleanCol", expr("longCol > 5"))
         .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+        .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
+        .withColumn("arrayCol", expr("ARRAY(longCol)"))
+        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
         .write()
         .format("delta")
         .mode("append")
@@ -320,7 +326,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   @Test
-  public void testSupportedPrimitiveTypes() {
+  public void testSnapshotSupportedTypes() {
     String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
