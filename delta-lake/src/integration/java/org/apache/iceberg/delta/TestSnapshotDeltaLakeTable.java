@@ -46,7 +46,6 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -350,24 +349,16 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     List<Row> icebergTableContents =
         spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
 
-    Assert.assertEquals(
-        "The original table and the transformed one should have the same size",
-        deltaTableContents.size(),
-        icebergTableContents.size());
-    Assert.assertEquals(
-        "The number of files in the delta table should be the same as the number of files in the snapshot iceberg table",
-        deltaLog.update().getAllFiles().size(),
-        snapshotReport.snapshotDataFilesCount());
+    Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
+    Assertions.assertThat(deltaLog.update().getAllFiles())
+        .hasSize((int) snapshotReport.snapshotDataFilesCount());
     Assertions.assertThat(icebergTableContents).containsAll(deltaTableContents);
     Assertions.assertThat(deltaTableContents).containsAll(icebergTableContents);
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
     Table icebergTable = getIcebergTable(icebergTableIdentifier);
-    Assert.assertEquals(
-        "The iceberg table should have the expected location",
-        expectedLocation,
-        icebergTable.location());
+    Assertions.assertThat(icebergTable.location()).isEqualTo(expectedLocation);
   }
 
   private void checkIcebergTableProperties(
