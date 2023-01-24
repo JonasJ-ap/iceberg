@@ -38,14 +38,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
@@ -57,9 +53,13 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestSnapshotDeltaLakeTable.class.getName());
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -145,45 +145,34 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", typeTestIdentifier));
 
     // hard code the dataframe
-    Dataset<Row> df = nestedDataframe();
+    Dataset<Row> nestedDataFrame = nestedDataFrame();
 
     // write to delta tables
-    df.write()
+    nestedDataFrame
+        .write()
         .format("delta")
         .mode(SaveMode.Append)
         .partitionBy("id")
         .option("path", partitionedLocation)
         .saveAsTable(partitionedIdentifier);
 
-    df.write()
+    nestedDataFrame
+        .write()
         .format("delta")
         .mode(SaveMode.Append)
         .option("path", unpartitionedLocation)
         .saveAsTable(unpartitionedIdentifier);
 
-    df.write()
+    nestedDataFrame
+        .write()
         .format("delta")
         .mode(SaveMode.Append)
         .option("path", externalDataFilesTableLocation)
         .saveAsTable(externalDataFilesIdentifier);
 
-    spark
-        .range(0, 10, 1, 10)
-        .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-        .withColumn("dateCol", date_add(current_date(), 1))
-        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
-        .withColumn("booleanCol", expr("longCol > 5"))
-        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
-        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
-        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
-        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
-        .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
-        .withColumn("arrayCol", expr("ARRAY(longCol)"))
-        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
+    Dataset<Row> typeTestDataFrame = typeTestDataFrame();
+
+    typeTestDataFrame
         .write()
         .format("delta")
         .mode("append")
@@ -327,6 +316,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotSupportedTypes() {
+    Dataset<Row> df = spark.read().format("delta").load(typeTestTableLocation);
+    LOG.info("Test new dataset schema {}", df.schema().treeString());
+    LOG.info("Test new dataset data {}", df.collectAsList());
     String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
@@ -461,84 +453,53 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     }
   }
 
-  /**
-   * Hardcode a nested dataframe to test the snapshot feature. The schema of created dataframe is:
-   *
-   * <pre>
-   *  root
-   *  |-- address_nested: struct (nullable = true)
-   *  |    |-- current: struct (nullable = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |    |-- previous: struct (nullable = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |-- addresses: array (nullable = true)
-   *  |    |-- element: struct (containsNull = true)
-   *  |    |    |-- city: string (nullable = true)
-   *  |    |    |-- state: string (nullable = true)
-   *  |-- id: long (nullable = true)
-   *  |-- magic_number: double (nullable = true)
-   *  |-- name: string (nullable = true)
-   *  |-- properties: struct (nullable = true)
-   *  |    |-- eye: string (nullable = true)
-   *  |    |-- hair: string (nullable = true)
-   *  |-- secondProp: struct (nullable = true)
-   *  |    |-- height: string (nullable = true)
-   *  |-- subjects: array (nullable = true)
-   *  |    |-- element: array (containsNull = true)
-   *  |    |    |-- element: string (containsNull = true)
-   * </pre>
-   *
-   * The dataframe content is (by calling df.show()):
-   *
-   * <pre>
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * |      address_nested|           addresses| id|  magic_number|   name|          properties|secondProp|            subjects|
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * |{{NewYork, NY}, {...|[{SanJose, CA}, {...|  1|1.123123123123|Michael|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |{{NewY1231ork, N1...|[{SanJos123123e, ...|  2|2.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |                null|[{SanJose, CA}, {...|  3|3.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
-   * |{{NewYork, NY}, {...|[{LA, CA}, {Sandi...|  4|4.123123123123|   John|{bla3221ck, b12rown}|     {633}|     [[Spark, Java]]|
-   * |{{Haha, PA}, {nul...|[{Pittsburgh, PA}...|  5|5.123123123123|  Jonas|      {black, black}|       {7}|[[Java, Scala, C+...|
-   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
-   * </pre>
-   */
-  private Dataset<Row> nestedDataframe() {
-    final String row1 =
-        "{\"name\":\"Michael\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-            + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ\",\"city\":\"Newark\"}},"
-            + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-            + "[\"Spark\",\"Java\"]],\"id\":1,\"magic_number\":1.123123123123}";
-    final String row2 =
-        "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJos123123e\",\"state\":\"CA\"},{\"city\":\"Sand12312iago\",\"state\":\"CA\"}],"
-            + "\"address_nested\":{\"current\":{\"state\":\"N12Y\",\"city\":\"NewY1231ork\"}},\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},"
-            + "\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":2,\"magic_number\":2.123123123123}";
-    final String row3 =
-        "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-            + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":"
-            + "[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":3,\"magic_number\":3.123123123123}";
-    final String row4 =
-        "{\"name\":\"John\",\"addresses\":[{\"city\":\"LA\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-            + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ123\"}},"
-            + "\"properties\":{\"hair\":\"b12rown\",\"eye\":\"bla3221ck\"},\"secondProp\":{\"height\":\"633\"},\"subjects\":"
-            + "[[\"Spark\",\"Java\"]],\"id\":4,\"magic_number\":4.123123123123}";
-    final String row5 =
-        "{\"name\":\"Jonas\",\"addresses\":[{\"city\":\"Pittsburgh\",\"state\":\"PA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-            + "\"address_nested\":{\"current\":{\"state\":\"PA\",\"city\":\"Haha\"},\"previous\":{\"state\":\"NJ\"}},"
-            + "\"properties\":{\"hair\":\"black\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"7\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-            + "[\"Spark\",\"Java\"]],\"id\":5,\"magic_number\":5.123123123123}";
+  private Dataset<Row> typeTestDataFrame() {
+    return spark
+        .range(0, 5, 1, 5)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+        .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
+        .withColumn("arrayCol", expr("ARRAY(longCol)"))
+        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"));
+  }
 
-    List<String> jsonList = Lists.newArrayList();
-    jsonList.add(row1);
-    jsonList.add(row2);
-    jsonList.add(row3);
-    jsonList.add(row4);
-    jsonList.add(row5);
-    JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    SQLContext sqlContext = new SQLContext(javaSparkContext);
-    JavaRDD<String> rdd = javaSparkContext.parallelize(jsonList);
-
-    return sqlContext.read().json(rdd);
+  private Dataset<Row> nestedDataFrame() {
+    return spark
+        .range(0, 5, 1, 5)
+        .withColumn("longCol", expr("id"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+        .withColumn("magic_number", expr("rand(5) * 100"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("dateString", expr("CAST(dateCol AS STRING)"))
+        .withColumn("random1", expr("CAST(rand(5) * 100 as LONG)"))
+        .withColumn("random2", expr("CAST(rand(51) * 100 as LONG)"))
+        .withColumn("random3", expr("CAST(rand(511) * 100 as LONG)"))
+        .withColumn("random4", expr("CAST(rand(15) * 100 as LONG)"))
+        .withColumn("random5", expr("CAST(rand(115) * 100 as LONG)"))
+        .withColumn("innerStruct1", expr("STRUCT(random1, random2)"))
+        .withColumn("innerStruct2", expr("STRUCT(random3, random4)"))
+        .withColumn("structCol1", expr("STRUCT(innerStruct1, innerStruct2)"))
+        .withColumn(
+            "innerStruct3",
+            expr("STRUCT(SHA1(CAST(random5 AS BINARY)), SHA1(CAST(random1 AS BINARY)))"))
+        .withColumn(
+            "structCol2",
+            expr(
+                "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
+        .withColumn("arrayCol", expr("ARRAY(random1, random2, random3, random4, random5)"))
+        .withColumn("mapCol1", expr("MAP(structCol1, structCol2)"))
+        .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
+        .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
+        .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
   }
 }
