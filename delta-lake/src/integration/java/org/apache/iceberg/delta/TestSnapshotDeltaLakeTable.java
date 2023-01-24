@@ -53,13 +53,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TestSnapshotDeltaLakeTable.class.getName());
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -144,40 +140,16 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", typeTestIdentifier));
 
-    // hard code the dataframe
+    // generate the dataframe
     Dataset<Row> nestedDataFrame = nestedDataFrame();
-
-    // write to delta tables
-    nestedDataFrame
-        .write()
-        .format("delta")
-        .mode(SaveMode.Append)
-        .partitionBy("id")
-        .option("path", partitionedLocation)
-        .saveAsTable(partitionedIdentifier);
-
-    nestedDataFrame
-        .write()
-        .format("delta")
-        .mode(SaveMode.Append)
-        .option("path", unpartitionedLocation)
-        .saveAsTable(unpartitionedIdentifier);
-
-    nestedDataFrame
-        .write()
-        .format("delta")
-        .mode(SaveMode.Append)
-        .option("path", externalDataFilesTableLocation)
-        .saveAsTable(externalDataFilesIdentifier);
-
     Dataset<Row> typeTestDataFrame = typeTestDataFrame();
 
-    typeTestDataFrame
-        .write()
-        .format("delta")
-        .mode("append")
-        .option("path", typeTestTableLocation)
-        .saveAsTable(typeTestIdentifier);
+    // write to delta tables
+    writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
+    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
+    writeDeltaTable(
+        nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation, null);
+    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "dateCol");
 
     // Delete a record from the table
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
@@ -316,9 +288,6 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotSupportedTypes() {
-    Dataset<Row> df = spark.read().format("delta").load(typeTestTableLocation);
-    LOG.info("Test new dataset schema {}", df.schema().treeString());
-    LOG.info("Test new dataset data {}", df.collectAsList());
     String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
@@ -501,5 +470,19 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
         .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
         .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
+  }
+
+  private void writeDeltaTable(
+      Dataset<Row> df, String identifier, String path, String partitionColumn) {
+    if (partitionColumn != null) {
+      df.write()
+          .format("delta")
+          .mode(SaveMode.Append)
+          .option("path", path)
+          .partitionBy(partitionColumn)
+          .saveAsTable(identifier);
+    } else {
+      df.write().format("delta").mode(SaveMode.Append).option("path", path).saveAsTable(identifier);
+    }
   }
 }
