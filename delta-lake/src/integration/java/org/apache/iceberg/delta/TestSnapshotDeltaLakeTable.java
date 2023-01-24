@@ -34,6 +34,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.net.URLCodec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -149,7 +151,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
     writeDeltaTable(
         nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation, null);
-    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "dateCol");
+    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
 
     // Delete a record from the table
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
@@ -358,6 +360,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .addedDataFiles(icebergTable.io())
         .forEach(
             dataFile -> {
+              Assertions.assertThat(URI.create(dataFile.path().toString()).isAbsolute()).isTrue();
               Assertions.assertThat(deltaTableDataFilePaths).contains(dataFile.path().toString());
             });
   }
@@ -415,10 +418,15 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
-    if (dataFileUri.isAbsolute()) {
-      return dataFileUri.getPath();
-    } else {
-      return tableRoot + File.separator + dataFileUri.getPath();
+    try {
+      String decodedPath = new URLCodec().decode(path);
+      if (dataFileUri.isAbsolute()) {
+        return decodedPath;
+      } else {
+        return tableRoot + File.separator + decodedPath;
+      }
+    } catch (DecoderException e) {
+      throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
     }
   }
 
@@ -431,7 +439,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
         .withColumn("dateCol", date_add(current_date(), 1))
         .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("stringCol", expr("CAST(timestampCol AS STRING)"))
         .withColumn("booleanCol", expr("longCol > 5"))
         .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
         .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
