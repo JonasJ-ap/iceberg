@@ -374,9 +374,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     if (dataFileUri.isAbsolute()) {
-      return path;
+      return dataFileUri.getPath();
     } else {
-      return tableRoot + File.separator + path;
+      return tableRoot + File.separator + dataFileUri.getPath();
     }
   }
 }
