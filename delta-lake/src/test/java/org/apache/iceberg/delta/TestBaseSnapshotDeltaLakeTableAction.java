@@ -88,7 +88,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
   }
 
   @Test
-  public void testDeltaTableNoTeExist() {
+  public void testDeltaTableNotExist() {
     SnapshotDeltaLakeTable testAction =
         new BaseSnapshotDeltaLakeTableAction(sourceTableLocation)
             .as(TableIdentifier.of("test", "test"))
