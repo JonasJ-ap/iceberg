@@ -238,7 +238,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       // The first version log is a special case, since it contains the initial table state.
       // we need to get all dataFiles from the corresponding delta snapshot to construct the table.
       dataFileActions =
-          deltaLog.getSnapshotForVersionAsOf(versionLog.getVersion()).getAllFiles().stream()
+          deltaLog.getSnapshotForVersionAsOf(deltaStartVersion).getAllFiles().stream()
               .map(addFile -> (Action) addFile)
               .collect(Collectors.toList());
     } else {
