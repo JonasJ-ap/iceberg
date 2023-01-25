@@ -89,6 +89,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private TableIdentifier newTableIdentifier;
   private String newTableLocation;
   private HadoopFileIO deltaLakeFileIO;
+  private long deltaStartVersion;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -138,6 +139,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
     this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
     this.deltaLakeFileIO = new HadoopFileIO(conf);
+    // get the earliest version available in the delta lake table
+    this.deltaStartVersion = deltaLog.getVersionAtOrAfterTimestamp(0L);
     return this;
   }
 
@@ -168,8 +171,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         .commit();
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
-            0, // retrieve actions starting from the initial version
-            false); // not throw exception when data loss detected
+            deltaStartVersion, false // not throw exception when data loss detected
+            );
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
@@ -226,13 +229,22 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    */
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
-    List<Action> actions = versionLog.getActions();
-
-    // Only need actions related to data change: AddFile and RemoveFile
-    List<Action> dataFileActions =
-        actions.stream()
-            .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-            .collect(Collectors.toList());
+    List<Action> dataFileActions;
+    if (versionLog.getVersion() == deltaStartVersion) {
+      // The first version log is a special case, since it contains the initial table state.
+      // we need to get all dataFiles from the corresponding delta snapshot to construct the table.
+      dataFileActions =
+          deltaLog.getSnapshotForVersionAsOf(versionLog.getVersion()).getAllFiles().stream()
+              .map(addFile -> (Action) addFile)
+              .collect(Collectors.toList());
+    } else {
+      List<Action> actions = versionLog.getActions();
+      // Only need actions related to data change: AddFile and RemoveFile
+      dataFileActions =
+          actions.stream()
+              .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
+              .collect(Collectors.toList());
+    }
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
