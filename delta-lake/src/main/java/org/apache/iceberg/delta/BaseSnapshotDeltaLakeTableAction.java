@@ -242,10 +242,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
               .map(addFile -> (Action) addFile)
               .collect(Collectors.toList());
     } else {
-      List<Action> actions = versionLog.getActions();
       // Only need actions related to data change: AddFile and RemoveFile
       dataFileActions =
-          actions.stream()
+          versionLog.getActions().stream()
               .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
               .collect(Collectors.toList());
     }
