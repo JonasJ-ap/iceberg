@@ -64,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +77,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotDeltaLakeTableAction.class);
 
+  private static final String START_VERSION_TO_MIGRATE_PROP = "delta_start_version_to_migrate";
+  private static final long DEFAULT_START_VERSION_TO_MIGRATE = 0;
+  private static final String END_VERSION_TO_MIGRATE_PROP = "delta_end_version_to_migrate";
+  private static final long DEFAULT_END_VERSION_TO_MIGRATE = Long.MAX_VALUE;
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -153,13 +158,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
+    Map<String, String> tableProperties = destTableProperties(updatedSnapshot, deltaTableLocation);
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
-            newTableIdentifier,
-            schema,
-            partitionSpec,
-            newTableLocation,
-            destTableProperties(updatedSnapshot, deltaTableLocation));
+            newTableIdentifier, schema, partitionSpec, newTableLocation, tableProperties);
     icebergTransaction
         .table()
         .updateProperties()
@@ -167,13 +169,22 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             TableProperties.DEFAULT_NAME_MAPPING,
             NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
         .commit();
+    long startVersionToMigrate = getStartVersionToSnapshot(tableProperties);
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
-            0, // retrieve actions starting from the initial version
-            false); // not throw exception when data loss detected
+            startVersionToMigrate, false); // not throw exception when data loss detected
+    // TODO: also need to handle the case where the a snapshot cannot be derived from a version
+    Preconditions.checkNotNull(
+        versionLogIterator,
+        "Failed to retrieve delta lake version logs start from version %s, please give a valid start version number",
+        startVersionToMigrate);
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
-      commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
+      if (versionLog.getVersion() > getEndVersionToSnapshot(tableProperties)) {
+        break;
+      }
+      commitDeltaVersionLogToIcebergTransaction(
+          versionLog, icebergTransaction, startVersionToMigrate);
     }
     Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
     long totalDataFiles =
@@ -226,8 +237,16 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    * @param transaction the iceberg table transaction to commit to
    */
   private void commitDeltaVersionLogToIcebergTransaction(
-      VersionLog versionLog, Transaction transaction) {
-    List<Action> actions = versionLog.getActions();
+      VersionLog versionLog, Transaction transaction, long startVersionToSnapshot) {
+    List<Action> actions;
+    if (versionLog.getVersion() == startVersionToSnapshot) {
+      actions =
+          deltaLog.getSnapshotForVersionAsOf(startVersionToSnapshot).getAllFiles().stream()
+              .map(addFile -> (Action) addFile)
+              .collect(Collectors.toList());
+    } else {
+      actions = versionLog.getActions();
+    }
 
     // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
     Map<String, List<Action>> deltaLakeActionMap =
@@ -385,5 +404,15 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     } catch (DecoderException e) {
       throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
     }
+  }
+
+  private long getStartVersionToSnapshot(Map<String, String> tableProperties) {
+    return PropertyUtil.propertyAsLong(
+        tableProperties, START_VERSION_TO_MIGRATE_PROP, DEFAULT_START_VERSION_TO_MIGRATE);
+  }
+
+  private long getEndVersionToSnapshot(Map<String, String> tableProperties) {
+    return PropertyUtil.propertyAsLong(
+        tableProperties, END_VERSION_TO_MIGRATE_PROP, DEFAULT_END_VERSION_TO_MIGRATE);
   }
 }

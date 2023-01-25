@@ -47,6 +47,9 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
                 hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            .config(
+                "spark.databricks.delta.retentionDurationCheck.enabled",
+                "false") // To test the VACUUM command
             .enableHiveSupport()
             .getOrCreate();
   }
