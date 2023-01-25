@@ -61,7 +61,6 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
@@ -229,15 +228,15 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       VersionLog versionLog, Transaction transaction) {
     List<Action> actions = versionLog.getActions();
 
-    // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
-    Map<String, List<Action>> deltaLakeActionMap =
+    // Only need actions related to data change: AddFile and RemoveFile
+    List<Action> dataFileActions =
         actions.stream()
             .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-            .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
+            .collect(Collectors.toList());
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
-    for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
+    for (Action action : dataFileActions) {
       DataFile dataFile = buildDataFileFromAction(action, transaction.table());
       if (action instanceof AddFile) {
         filesToAdd.add(dataFile);
