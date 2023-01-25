@@ -152,6 +152,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     Preconditions.checkArgument(
         deltaLog != null && deltaLakeFileIO != null,
         "Make sure to configure the action with a valid deltaLakeConfiguration");
+    Preconditions.checkArgument(
+        deltaLog.tableExists(),
+        "Delta lake table does not exist at the given location: %s",
+        deltaTableLocation);
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
