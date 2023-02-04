@@ -30,7 +30,6 @@ import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -1129,19 +1128,70 @@ public class AwsProperties implements Serializable {
    *     S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
    * </pre>
    */
+  @SuppressWarnings("CyclomaticComplexity")
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(
-            UrlConnectionHttpClient.builder()
-                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
+        UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
+            UrlConnectionHttpClient.builder();
+        if (httpClientUrlConnectionConnectionTimeoutMs != null) {
+          urlConnectionHttpClientBuilder.connectionTimeout(
+              Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
+        }
+
+        if (httpClientUrlConnectionSocketTimeoutMs != null) {
+          urlConnectionHttpClientBuilder.socketTimeout(
+              Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
+        }
+
+        builder.httpClientBuilder(urlConnectionHttpClientBuilder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(
-            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
+        ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+        if (httpClientApacheConnectionTimeoutMs != null) {
+          apacheHttpClientBuilder.connectionTimeout(
+              Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
+        }
+
+        if (httpClientApacheSocketTimeoutMs != null) {
+          apacheHttpClientBuilder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
+        }
+
+        if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
+          apacheHttpClientBuilder.connectionAcquisitionTimeout(
+              Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
+        }
+
+        if (httpClientApacheConnectionMaxIdleTimeMs != null) {
+          apacheHttpClientBuilder.connectionMaxIdleTime(
+              Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
+        }
+
+        if (httpClientApacheConnectionTimeToLiveMs != null) {
+          apacheHttpClientBuilder.connectionTimeToLive(
+              Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
+        }
+
+        if (httpClientApacheExpectContinueEnabled != null) {
+          apacheHttpClientBuilder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
+        }
+
+        if (httpClientApacheMaxConnections != null) {
+          apacheHttpClientBuilder.maxConnections(httpClientApacheMaxConnections);
+        }
+
+        if (httpClientApacheTcpKeepAliveEnabled != null) {
+          apacheHttpClientBuilder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
+        }
+
+        if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
+          apacheHttpClientBuilder.useIdleConnectionReaper(
+              httpClientApacheUseIdleConnectionReaperEnabled);
+        }
+        builder.httpClientBuilder(apacheHttpClientBuilder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1227,58 +1277,6 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
-    }
-  }
-
-  @VisibleForTesting
-  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
-      T builder) {
-    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
-    }
-
-    if (httpClientUrlConnectionSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
-    }
-  }
-
-  @VisibleForTesting
-  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    if (httpClientApacheConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
-    }
-
-    if (httpClientApacheSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
-      builder.connectionAcquisitionTimeout(
-          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
-    }
-
-    if (httpClientApacheConnectionTimeToLiveMs != null) {
-      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
-    }
-
-    if (httpClientApacheExpectContinueEnabled != null) {
-      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
-    }
-
-    if (httpClientApacheMaxConnections != null) {
-      builder.maxConnections(httpClientApacheMaxConnections);
-    }
-
-    if (httpClientApacheTcpKeepAliveEnabled != null) {
-      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
-    }
-
-    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
-      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
     }
   }
 }
