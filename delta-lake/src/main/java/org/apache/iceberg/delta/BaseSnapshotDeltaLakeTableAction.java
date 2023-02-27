@@ -154,6 +154,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         deltaLog.tableExists(),
         "Delta Lake table does not exist at the given location: %s",
         deltaTableLocation);
+
+    LOG.info(
+        "Snapshotting Delta Lake table at {} to Iceberg table {}",
+        deltaTableLocation,
+        newTableIdentifier);
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema, updatedSnapshot);
@@ -174,13 +179,23 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     long constructableStartVersion =
         commitInitialDeltaSnapshotToIcebergTransaction(
             updatedSnapshot.getVersion(), icebergTransaction);
+    LOG.info(
+        "Committed initial Delta Lake snapshot with version {} to Iceberg table {}",
+        constructableStartVersion,
+        newTableIdentifier);
+
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             constructableStartVersion + 1, false // not throw exception when data loss detected
             );
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
+
       commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
+      LOG.info(
+          "Committed Delta Lake version {} to Iceberg table {}",
+          versionLog.getVersion(),
+          newTableIdentifier);
     }
 
     Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
