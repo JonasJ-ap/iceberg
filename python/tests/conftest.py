@@ -50,6 +50,7 @@ import boto3
 import botocore.awsrequest
 import botocore.model
 import pytest
+import pyarrow as pa
 from moto import mock_dynamodb, mock_glue, mock_s3
 
 from pyiceberg import schema

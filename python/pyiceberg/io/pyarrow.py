@@ -84,7 +84,7 @@ from pyiceberg.schema import (
     promote,
     prune_columns,
     visit,
-    visit_with_partner,
+    visit_with_partner, assign_fresh_schema_ids,
 )
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
@@ -355,14 +355,17 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
             name=field.name,
             type=field_result,
             nullable=field.optional,
-            metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
+            metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {"id": str(field.field_id)},
         )
 
-    def list(self, _: ListType, element_result: pa.DataType) -> pa.DataType:
-        return pa.list_(value_type=element_result)
+    def list(self, list_type: ListType, element_result: pa.DataType) -> pa.DataType:
+        element_field = self.field(list_type.element_field, element_result)
+        return pa.list_(value_type=element_field)
 
-    def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
-        return pa.map_(key_type=key_result, item_type=value_result)
+    def map(self, map_type: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
+        key_field = self.field(map_type.key_field, key_result)
+        value_field = self.field(map_type.value_field, value_result)
+        return pa.map_(key_type=key_field, item_type=value_field)
 
     def visit_fixed(self, fixed_type: FixedType) -> pa.DataType:
         return pa.binary(len(fixed_type))
@@ -602,7 +605,9 @@ class ArrowSchemaVisitor(Generic[T], ABC):
 def _get_field_id(field: pa.Field) -> int:
     field_metadata = {k.decode(): v.decode() for k, v in field.metadata.items()}
     if field_id := field_metadata.get("PARQUET:field_id"):
-        return field_id
+        return int(field_id)
+    if field_id := field_metadata.get("id"):
+        return int(field_id)
     raise ValueError(f"Field {field.name} does not have a field_id")
 
 

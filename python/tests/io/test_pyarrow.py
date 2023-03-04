@@ -60,6 +60,7 @@ from pyiceberg.io.pyarrow import (
     expression_to_pyarrow,
     project_table,
     schema_to_pyarrow,
+    pyarrow_to_schema
 )
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.partitioning import PartitionSpec
@@ -440,8 +441,8 @@ def bound_double_reference() -> BoundReference[float]:
 
 def test_expr_is_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundIsNull(bound_reference)))
-        == "<pyarrow.compute.Expression is_null(foo, {nan_is_null=false})>"
+            repr(expression_to_pyarrow(BoundIsNull(bound_reference)))
+            == "<pyarrow.compute.Expression is_null(foo, {nan_is_null=false})>"
     )
 
 
@@ -451,57 +452,57 @@ def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
+            repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
+            == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
     )
 
 
 def test_expr_not_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
+            repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
+            == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
     )
 
 
 def test_expr_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundEqualTo(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo == "hello")>'
+            repr(expression_to_pyarrow(BoundEqualTo(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo == "hello")>'
     )
 
 
 def test_expr_not_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundNotEqualTo(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo != "hello")>'
+            repr(expression_to_pyarrow(BoundNotEqualTo(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo != "hello")>'
     )
 
 
 def test_expr_greater_than_or_equal_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundGreaterThanOrEqual(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo >= "hello")>'
+            repr(expression_to_pyarrow(BoundGreaterThanOrEqual(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo >= "hello")>'
     )
 
 
 def test_expr_greater_than_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundGreaterThan(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo > "hello")>'
+            repr(expression_to_pyarrow(BoundGreaterThan(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo > "hello")>'
     )
 
 
 def test_expr_less_than_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundLessThan(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo < "hello")>'
+            repr(expression_to_pyarrow(BoundLessThan(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo < "hello")>'
     )
 
 
 def test_expr_less_than_or_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundLessThanOrEqual(bound_reference, literal("hello"))))
-        == '<pyarrow.compute.Expression (foo <= "hello")>'
+            repr(expression_to_pyarrow(BoundLessThanOrEqual(bound_reference, literal("hello"))))
+            == '<pyarrow.compute.Expression (foo <= "hello")>'
     )
 
 
@@ -533,36 +534,38 @@ def test_expr_not_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 def test_expr_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundStartsWith(bound_reference, literal("he"))))
-        == '<pyarrow.compute.Expression starts_with(foo, {pattern="he", ignore_case=false})>'
+            repr(expression_to_pyarrow(BoundStartsWith(bound_reference, literal("he"))))
+            == '<pyarrow.compute.Expression starts_with(foo, {pattern="he", ignore_case=false})>'
     )
 
 
 def test_expr_not_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(BoundNotStartsWith(bound_reference, literal("he"))))
-        == '<pyarrow.compute.Expression invert(starts_with(foo, {pattern="he", ignore_case=false}))>'
+            repr(expression_to_pyarrow(BoundNotStartsWith(bound_reference, literal("he"))))
+            == '<pyarrow.compute.Expression invert(starts_with(foo, {pattern="he", ignore_case=false}))>'
     )
 
 
 def test_and_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(And(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
-        == '<pyarrow.compute.Expression ((foo == "hello") and is_null(foo, {nan_is_null=false}))>'
+            repr(expression_to_pyarrow(
+                And(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
+            == '<pyarrow.compute.Expression ((foo == "hello") and is_null(foo, {nan_is_null=false}))>'
     )
 
 
 def test_or_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(Or(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
-        == '<pyarrow.compute.Expression ((foo == "hello") or is_null(foo, {nan_is_null=false}))>'
+            repr(expression_to_pyarrow(
+                Or(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
+            == '<pyarrow.compute.Expression ((foo == "hello") or is_null(foo, {nan_is_null=false}))>'
     )
 
 
 def test_not_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
-        repr(expression_to_pyarrow(Not(BoundEqualTo(bound_reference, literal("hello")))))
-        == '<pyarrow.compute.Expression invert((foo == "hello"))>'
+            repr(expression_to_pyarrow(Not(BoundEqualTo(bound_reference, literal("hello")))))
+            == '<pyarrow.compute.Expression invert((foo == "hello"))>'
     )
 
 
@@ -581,7 +584,8 @@ def schema_int() -> Schema:
 
 @pytest.fixture
 def schema_int_str() -> Schema:
-    return Schema(NestedField(1, "id", IntegerType(), required=False), NestedField(2, "data", StringType(), required=False))
+    return Schema(NestedField(1, "id", IntegerType(), required=False),
+                  NestedField(2, "data", StringType(), required=False))
 
 
 @pytest.fixture
@@ -677,7 +681,8 @@ def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
 def file_string(schema_str: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
     return _write_table_to_file(
-        f"file:{tmpdir}/b.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
+        f"file:{tmpdir}/b.parquet", pyarrow_schema,
+        pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
     )
 
 
@@ -760,12 +765,14 @@ def file_map(schema_map: Schema, tmpdir: str) -> str:
 
 
 def project(
-    schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None, table_schema: Optional[Schema] = None
+        schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None,
+        table_schema: Optional[Schema] = None
 ) -> pa.Table:
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3,
+                         file_size_in_bytes=3)
             )
             for file in files
         ],
@@ -802,7 +809,8 @@ def test_projection_add_column(file_int: str) -> None:
             40,
             "location",
             StructType(
-                NestedField(41, "lat", DoubleType(), required=False), NestedField(42, "lon", DoubleType(), required=False)
+                NestedField(41, "lat", DoubleType(), required=False),
+                NestedField(42, "lon", DoubleType(), required=False)
             ),
             required=False,
         ),
@@ -825,8 +833,8 @@ def test_projection_add_column(file_int: str) -> None:
         assert actual.as_py() == expected
 
     assert (
-        repr(result_table.schema)
-        == """id: int32
+            repr(result_table.schema)
+            == """id: int32
 list: list<item: int32>
   child 0, item: int32
 map: map<int32, string>
@@ -857,8 +865,8 @@ def test_read_map(schema_map: Schema, file_map: str) -> None:
         assert actual.as_py() == expected
 
     assert (
-        repr(result_table.schema)
-        == """properties: map<string, string>
+            repr(result_table.schema)
+            == """properties: map<string, string>
   child 0, entries: struct<key: string not null, value: string> not null
       child 0, key: string not null
       child 1, value: string"""
@@ -881,8 +889,8 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
         assert r.as_py() is None
 
     assert (
-        repr(result_table.schema)
-        == """id: map<int32, string>
+            repr(result_table.schema)
+            == """id: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
       child 1, value: string"""
@@ -987,7 +995,8 @@ def test_projection_nested_struct_subset(file_struct: str) -> None:
         assert actual.as_py() == {"lat": expected}
 
     assert len(result_table.columns[0]) == 3
-    assert repr(result_table.schema) == "location: struct<lat: double not null> not null\n  child 0, lat: double not null"
+    assert repr(
+        result_table.schema) == "location: struct<lat: double not null> not null\n  child 0, lat: double not null"
 
 
 def test_projection_nested_new_field(file_struct: str) -> None:
@@ -1024,18 +1033,18 @@ def test_projection_nested_struct(schema_struct: Schema, file_struct: str) -> No
 
     result_table = project(schema, [file_struct])
     for actual, expected in zip(
-        result_table.columns[0],
-        [
-            {"lat": 52.371807, "long": 4.896029, "null": None},
-            {"lat": 52.387386, "long": 4.646219, "null": None},
-            {"lat": 52.078663, "long": 4.288788, "null": None},
-        ],
+            result_table.columns[0],
+            [
+                {"lat": 52.371807, "long": 4.896029, "null": None},
+                {"lat": 52.387386, "long": 4.646219, "null": None},
+                {"lat": 52.078663, "long": 4.288788, "null": None},
+            ],
     ):
         assert actual.as_py() == expected
     assert len(result_table.columns[0]) == 3
     assert (
-        repr(result_table.schema)
-        == "location: struct<lat: double, null: double, long: double> not null\n  child 0, lat: double\n  child 1, null: double\n  child 2, long: double"
+            repr(result_table.schema)
+            == "location: struct<lat: double, null: double, long: double> not null\n  child 0, lat: double\n  child 1, null: double\n  child 2, long: double"
     )
 
 
@@ -1061,23 +1070,23 @@ def test_projection_list_of_structs(schema_list_of_structs: Schema, file_list_of
     assert len(result_table.columns) == 1
     assert len(result_table.columns[0]) == 3
     for actual, expected in zip(
-        result_table.columns[0],
-        [
+            result_table.columns[0],
             [
-                {"latitude": 52.371807, "longitude": 4.896029, "altitude": None},
-                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+                [
+                    {"latitude": 52.371807, "longitude": 4.896029, "altitude": None},
+                    {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+                ],
+                [],
+                [
+                    {"latitude": 52.078663, "longitude": 4.288788, "altitude": None},
+                    {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+                ],
             ],
-            [],
-            [
-                {"latitude": 52.078663, "longitude": 4.288788, "altitude": None},
-                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
-            ],
-        ],
     ):
         assert actual.as_py() == expected
     assert (
-        repr(result_table.schema)
-        == """locations: list<item: struct<latitude: double not null, longitude: double not null, altitude: double>>
+            repr(result_table.schema)
+            == """locations: list<item: struct<latitude: double not null, longitude: double not null, altitude: double>>
   child 0, item: struct<latitude: double not null, longitude: double not null, altitude: double>
       child 0, latitude: double not null
       child 1, longitude: double not null
@@ -1091,7 +1100,8 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
             5,  # 😱 this is 4 in the file, this will be fixed when projecting the file schema
             "location",
             StructType(
-                NestedField(41, "lat", DoubleType(), required=False), NestedField(42, "long", DoubleType(), required=False)
+                NestedField(41, "lat", DoubleType(), required=False),
+                NestedField(42, "long", DoubleType(), required=False)
             ),
             required=False,
         )
@@ -1102,8 +1112,8 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
         assert actual.as_py() == expected
     assert len(result_table.columns[0]) == 3
     assert (
-        repr(result_table.schema)
-        == """location: struct<lat: double, long: double>
+            repr(result_table.schema)
+            == """location: struct<lat: double, long: double>
   child 0, lat: double
   child 1, long: double"""
     )
@@ -1115,8 +1125,8 @@ def test_projection_filter_on_unprojected_field(schema_int_str: Schema, file_int
     result_table = project(schema, [file_int_str], GreaterThan("data", "1"), schema_int_str)
 
     for actual, expected in zip(
-        result_table.columns[0],
-        [2],
+            result_table.columns[0],
+            [2],
     ):
         assert actual.as_py() == expected
     assert len(result_table.columns[0]) == 1
@@ -1130,3 +1140,15 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
         _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
+
+
+def test_pyarrow_to_iceberg_schema_simple(table_schema_simple: Schema) -> None:
+    pyarrow_schema = schema_to_pyarrow(table_schema_simple)
+    actual = pyarrow_to_schema(pyarrow_schema)
+    assert str(actual) == str(table_schema_simple)
+
+
+def test_pyarrow_to_iceberg_schema_nested(table_schema_nested: Schema) -> None:
+    pyarrow_schema = schema_to_pyarrow(table_schema_nested)
+    actual = pyarrow_to_schema(pyarrow_schema)
+    assert str(actual) == str(table_schema_nested)
