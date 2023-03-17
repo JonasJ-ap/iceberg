@@ -195,7 +195,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         newTableIdentifier,
         deltaTableLocation,
         totalDataFiles);
-    return new BaseSnapshotDeltaLakeTableActionResult(totalDataFiles);
+    return ImmutableSnapshotDeltaLakeTable.Result.builder()
+        .snapshotDataFilesCount(totalDataFiles)
+        .build();
   }
 
   private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
