@@ -272,7 +272,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .build());
     AssertHelpers.assertThrows(
         "should fail to rename",
-        ValidationException.class,
+        IllegalArgumentException.class,
         "Input Glue table is not an iceberg table",
         () ->
             glueCatalog.renameTable(

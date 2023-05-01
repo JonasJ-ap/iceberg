@@ -400,6 +400,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
           e, "Cannot rename %s because the table does not exist in Glue", from);
     }
 
+    Preconditions.checkArgument(
+        fromTable.tableType() != null && fromTable.tableType().equals("ICEBERG"),
+        "Input Glue table is not an iceberg table");
+
     // use the same Glue info to create the new table, pointing to the old metadata
     TableInput.Builder tableInputBuilder =
         TableInput.builder()
