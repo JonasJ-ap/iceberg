@@ -1355,6 +1355,22 @@ def _(file_type: BinaryType, read_type: IcebergType) -> IcebergType:
         raise ResolveError(f"Cannot promote an binary to {read_type}")
 
 
+@promote.register(FixedType)
+def _(file_type: FixedType, read_type: IcebergType) -> IcebergType:
+    if isinstance(read_type, UUIDType) and len(file_type) == 16:
+        return read_type
+    else:
+        raise ResolveError(f"Cannot promote an {file_type} to {read_type}")
+
+
+@promote.register(UUIDType)
+def _(file_type: UUIDType, read_type: IcebergType) -> IcebergType:
+    if isinstance(read_type, FixedType) and len(read_type) == 16:
+        return read_type
+    else:
+        raise ResolveError(f"Cannot promote an uuid to {read_type}")
+
+
 @promote.register(DecimalType)
 def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, DecimalType):
