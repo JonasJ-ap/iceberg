@@ -57,6 +57,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
+import org.apache.spark.sql.functions;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -126,7 +127,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
             .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
             .withColumn("arrayCol", expr("ARRAY(longCol)"))
-            .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"));
+            .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
+            .withColumn("newStringCol", functions.concat(functions.lit("11/22/33"), functions.col("longCol")));
     nestedDataFrame =
         spark
             .range(0, 5, 1, 5)
@@ -300,7 +302,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     String typeTestIdentifier = destName(defaultSparkCatalog, "type_test_table");
     String typeTestTableLocation = temp.newFolder().toURI().toString();
 
-    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
+    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "newStringCol");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_type_test_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
