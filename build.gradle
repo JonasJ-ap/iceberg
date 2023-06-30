@@ -558,9 +558,9 @@ project(':iceberg-delta-lake') {
 
     // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
     // not need to include older version of delta-core
-    if (sparkVersions.contains("3.3")) {
+    if (sparkVersions.contains("3.4")) {
       integrationImplementation "io.delta:delta-core_${scalaVersion}"
-      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.4_${scalaVersion}")
       integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
         // to make sure netty libs only come from project(':iceberg-arrow')
@@ -569,7 +569,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.2") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.4.1") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
@@ -583,7 +583,7 @@ project(':iceberg-delta-lake') {
 
   // The newest version of delta-core uses Spark 3.3.*. The integration test should only be built
   // if iceberg-spark-3.3 is available
-  if (sparkVersions.contains("3.3")) {
+  if (sparkVersions.contains("3.4")) {
     sourceSets {
       integration {
         java.srcDir "$projectDir/src/integration/java"
