@@ -14,30 +14,44 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-outer-name,arguments-renamed,fixme
+from __future__ import annotations
+
+import math
+from abc import ABC, abstractmethod
 from enum import Enum
+from types import TracebackType
 from typing import (
     Any,
     Dict,
     Iterator,
     List,
     Optional,
+    Type,
 )
 
-from pyiceberg.avro.file import AvroFile
-from pyiceberg.io import FileIO, InputFile
+from pyiceberg import conversions
+from pyiceberg.avro.file import AvroFile, AvroOutputFile
+from pyiceberg.conversions import to_bytes
+from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
     MapType,
     NestedField,
+    PrimitiveType,
     StringType,
     StructType,
 )
+
+UNASSIGNED_SEQ = -1
 
 
 class DataFileContent(int, Enum):
@@ -77,6 +91,11 @@ class FileFormat(str, Enum):
     def __repr__(self) -> str:
         """Returns the string representation of the FileFormat class."""
         return f"FileFormat.{self.name}"
+
+    def add_extension(self, filename: str) -> str:
+        if filename.endswith(f".{self.name.lower()}"):
+            return filename
+        return f"{filename}.{self.name.lower()}"
 
 
 DATA_FILE_TYPE = StructType(
@@ -242,6 +261,65 @@ class PartitionFieldSummary(Record):
         super().__init__(*data, **{"struct": PARTITION_FIELD_SUMMARY_TYPE, **named_data})
 
 
+class PartitionFieldStats:
+    _type: PrimitiveType
+    _contains_null: bool
+    _contains_nan: bool
+    _min: Optional[Any]
+    _max: Optional[Any]
+
+    def __init__(self, iceberg_type: IcebergType) -> None:
+        assert isinstance(iceberg_type, PrimitiveType), f"Expected a primitive type for the partition field, got {iceberg_type}"
+        self._type = iceberg_type
+        self._contains_null = False
+        self._contains_nan = False
+        self._min = None
+        self._max = None
+
+    def to_summary(self) -> PartitionFieldSummary:
+        return PartitionFieldSummary(
+            contains_null=self._contains_null,
+            contains_nan=self._contains_nan,
+            lower_bound=to_bytes(self._type, self._min) if self._min is not None else None,
+            upper_bound=to_bytes(self._type, self._max) if self._max is not None else None,
+        )
+
+    def update(self, value: Any) -> PartitionFieldStats:
+        if value is None:
+            self._contains_null = True
+        elif math.isnan(value):
+            self._contains_nan = True
+        else:
+            if self._min is None:
+                self._min = value
+                self._max = value
+            # TODO: may need to implement a custom comparator for incompatible types
+            elif value < self._min:
+                self._min = value
+            elif value > self._max:
+                self._max = value
+        return self
+
+
+class PartitionSummary:
+    _fields: List[PartitionFieldStats]
+    _types: List[IcebergType]
+
+    def __init__(self, spec: PartitionSpec, schema: Schema):
+        self._types = [field.field_type for field in spec.partition_type(schema).fields]
+        self._fields = [PartitionFieldStats(field_type) for field_type in self._types]
+
+    def summaries(self) -> List[PartitionFieldSummary]:
+        return [field.to_summary() for field in self._fields]
+
+    def update(self, partition_keys: Record) -> PartitionSummary:
+        for i, field_type in enumerate(self._types):
+            assert isinstance(field_type, PrimitiveType), f"Expected a primitive type for the partition field, got {field_type}"
+            partition_key = partition_keys[i]
+            self._fields[i].update(conversions.partition_to_py(field_type, partition_key))
+        return self
+
+
 MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(500, "manifest_path", StringType(), required=True, doc="Location URI with FS scheme"),
     NestedField(501, "manifest_length", LongType(), required=True),
@@ -363,3 +441,220 @@ def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> Ma
         entry.file_sequence_number = manifest.sequence_number
 
     return entry
+
+
+class ManifestWriter(ABC):
+    closed: bool
+    _spec: PartitionSpec
+    _output_file: OutputFile
+    _writer: AvroOutputFile[ManifestEntry]
+    _snapshot_id: int
+    _meta: Dict[str, str]
+    _added_files: int
+    _added_rows: int
+    _existing_files: int
+    _existing_rows: int
+    _deleted_files: int
+    _deleted_rows: int
+    _min_data_sequence_number: Optional[int]
+    _partition_summary: PartitionSummary
+
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int, meta: Dict[str, str]):
+        self.closed = False
+        self._spec = spec
+        self._output_file = output_file
+        self._snapshot_id = snapshot_id
+        self._meta = meta
+
+        self._added_files = 0
+        self._added_rows = 0
+        self._existing_files = 0
+        self._existing_rows = 0
+        self._deleted_files = 0
+        self._deleted_rows = 0
+        self._min_data_sequence_number = None
+        self._partition_summary = PartitionSummary(spec, schema)
+
+    def __enter__(self) -> ManifestWriter:
+        """Opens the writer."""
+        self._writer = AvroOutputFile[ManifestEntry](self._output_file, MANIFEST_ENTRY_SCHEMA, "manifest_entry", self._meta)
+        with self._writer:
+            return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[Type[BaseException]],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Closes the writer."""
+        self.closed = True
+
+    @abstractmethod
+    def content(self) -> ManifestContent:
+        ...
+
+    def close(self) -> None:
+        if not self.closed:
+            self.closed = True
+
+    def to_manifest_file(self) -> ManifestFile:
+        if not self.closed:
+            raise RuntimeError("Cannot build ManifestFile, writer is not closed")
+        min_sequence_number = self._min_data_sequence_number or UNASSIGNED_SEQ
+        return ManifestFile(
+            manifest_path=self._output_file.location,
+            manifest_length=len(self._writer.output_file),
+            partition_spec_id=self._spec.spec_id,
+            content=self.content(),
+            sequence_number=UNASSIGNED_SEQ,
+            min_sequence_number=min_sequence_number,
+            added_snapshot_id=self._snapshot_id,
+            added_files_count=self._added_files,
+            existing_files_count=self._existing_files,
+            deleted_files_count=self._deleted_files,
+            added_rows_count=self._added_rows,
+            existing_rows_count=self._existing_rows,
+            deleted_rows_count=self._deleted_rows,
+            partitions=self._partition_summary.summaries(),
+            key_metadatas=None,
+        )
+
+    def add_entry(self, entry: ManifestEntry) -> ManifestWriter:
+        if self.closed:
+            raise RuntimeError("Cannot add entry to closed manifest writer")
+        if entry.status == ManifestEntryStatus.ADDED:
+            self._added_files += 1
+            self._added_rows += entry.data_file.record_count
+        elif entry.status == ManifestEntryStatus.EXISTING:
+            self._existing_files += 1
+            self._existing_rows += entry.data_file.record_count
+        elif entry.status == ManifestEntryStatus.DELETED:
+            self._deleted_files += 1
+            self._deleted_rows += entry.data_file.record_count
+
+        self._partition_summary.update(entry.data_file.partition)
+
+        if (
+            (entry.status == ManifestEntryStatus.ADDED or entry.status == ManifestEntryStatus.EXISTING)
+            and entry.data_sequence_number is not None
+            and (self._min_data_sequence_number is None or entry.data_sequence_number < self._min_data_sequence_number)
+        ):
+            self._min_data_sequence_number = entry.data_sequence_number
+
+        self._writer.write_block([entry])
+        return self
+
+
+class ManifestWriterV1(ManifestWriter):
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int):
+        super().__init__(
+            spec,
+            schema,
+            output_file,
+            snapshot_id,
+            {
+                "schema": schema.json(),
+                "partition-spec": spec.json(),
+                "partition-spec-id": str(spec.spec_id),
+                "format-version": "1",
+            },
+        )
+
+    def content(self) -> ManifestContent:
+        return ManifestContent.DATA
+
+
+class ManifestWriterV2(ManifestWriter):
+    def __init__(self, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int):
+        super().__init__(
+            spec,
+            schema,
+            output_file,
+            snapshot_id,
+            {
+                "schema": schema.json(),
+                "partition-spec": spec.json(),
+                "partition-spec-id": str(spec.spec_id),
+                "format-version": "2",
+                "content": "data",
+            },
+        )
+
+    def content(self) -> ManifestContent:
+        return ManifestContent.DATA
+
+
+def write_manifest_entry(
+    format_version: int, spec: PartitionSpec, schema: Schema, output_file: OutputFile, snapshot_id: int
+) -> ManifestWriter:
+    if format_version == 1:
+        return ManifestWriterV1(spec, schema, output_file, snapshot_id)
+    elif format_version == 2:
+        return ManifestWriterV2(spec, schema, output_file, snapshot_id)
+    else:
+        # TODO: replace it with UnsupportedOperationException
+        raise ValueError(f"Cannot write manifest for table version: {format_version}")
+
+
+class ManifestListWriter(ABC):
+    _output_file: OutputFile
+    _meta: Dict[str, str]
+    _manifest_files: List[ManifestFile]
+    _writer: AvroOutputFile[ManifestFile]
+
+    def __init__(self, output_file: OutputFile, meta: Dict[str, str]):
+        self._output_file = output_file
+        self._meta = meta
+        self._manifest_files = []
+
+    def __enter__(self) -> ManifestListWriter:
+        """Opens the writer for writing."""
+        self._writer = AvroOutputFile[ManifestFile](self._output_file, MANIFEST_FILE_SCHEMA, "manifest_file", self._meta)
+        with self._writer:
+            return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[Type[BaseException]],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Closes the writer."""
+        return
+
+    def add_manifests(self, manifest_files: List[ManifestFile]) -> ManifestListWriter:
+        self._writer.write_block(manifest_files)
+        return self
+
+
+class ManifestListWriterV1(ManifestListWriter):
+    def __init__(self, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int):
+        super().__init__(
+            output_file, {"snapshot-id": str(snapshot_id), "parent-snapshot-id": str(parent_snapshot_id), "format-version": "1"}
+        )
+
+
+class ManifestListWriterV2(ManifestListWriter):
+    def __init__(self, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int):
+        super().__init__(
+            output_file,
+            {
+                "snapshot-id": str(snapshot_id),
+                "parent-snapshot-id": str(parent_snapshot_id),
+                "sequence-number": str(sequence_number),
+                "format-version": "2",
+            },
+        )
+
+
+def write_manifest_list(
+    format_version: int, output_file: OutputFile, snapshot_id: int, parent_snapshot_id: int, sequence_number: int
+) -> ManifestListWriter:
+    if format_version == 1:
+        return ManifestListWriterV1(output_file, snapshot_id, parent_snapshot_id)
+    elif format_version == 2:
+        return ManifestListWriterV2(output_file, snapshot_id, parent_snapshot_id, sequence_number)
+    else:
+        # TODO: replace it with UnsupportedOperationException
+        raise ValueError(f"Cannot write manifest list for table version: {format_version}")
