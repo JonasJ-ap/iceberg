@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict
 
 import fastavro
+import pytest
 
 from pyiceberg.io import load_file_io
 from pyiceberg.io.pyarrow import PyArrowFileIO
@@ -300,46 +301,62 @@ def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
     assert entry.status == ManifestEntryStatus.ADDED
 
 
-def test_write_manifest_entry(generated_manifest_entry_file: str) -> None:
+@pytest.mark.parametrize("format_version", [1, 2])
+def test_write_manifest(generated_manifest_file_file_v1: str, generated_manifest_file_file_v2: str, format_version: int) -> None:
     io = load_file_io()
-    manifest = ManifestFile(
-        manifest_path=generated_manifest_entry_file,
-        manifest_length=0,
-        partition_spec_id=0,
-        sequence_number=None,
-        partitions=[],
-        added_snapshot_id=0,
+    snapshot = Snapshot(
+        snapshot_id=25,
+        parent_snapshot_id=19,
+        timestamp_ms=1602638573590,
+        manifest_list=generated_manifest_file_file_v1 if format_version == 1 else generated_manifest_file_file_v2,
+        summary=Summary(Operation.APPEND),
+        schema_id=3,
     )
-    manifest_entries = manifest.fetch_manifest_entry(io)
-
+    demo_manifest_file = snapshot.manifests(io)[0]
+    manifest_entries = demo_manifest_file.fetch_manifest_entry(io)
+    test_schema = Schema(
+        NestedField(1, "VendorID", IntegerType(), False), NestedField(2, "tpep_pickup_datetime", IntegerType(), False)
+    )
+    test_spec = PartitionSpec(
+        PartitionField(source_id=1, field_id=1, transform=IdentityTransform(), name="VendorID"),
+        PartitionField(source_id=2, field_id=2, transform=IdentityTransform(), name="tpep_pickup_datetime"),
+        spec_id=demo_manifest_file.partition_spec_id,
+    )
     with TemporaryDirectory() as tmpdir:
         tmp_avro_file = tmpdir + "/test_write_manifest.avro"
         output = io.new_output(tmp_avro_file)
         with write_manifest(
-            format_version=1,
-            spec=PartitionSpec(
-                PartitionField(source_id=1, field_id=1, transform=IdentityTransform(), name="VendorID"),
-                PartitionField(source_id=2, field_id=2, transform=IdentityTransform(), name="tpep_pickup_datetime"),
-                spec_id=manifest.partition_spec_id,
-            ),
-            schema=Schema(
-                NestedField(1, "VendorID", IntegerType(), False), NestedField(2, "tpep_pickup_datetime", IntegerType(), False)
-            ),
+            format_version=format_version,
+            spec=test_spec,
+            schema=test_schema,
             output_file=output,
             snapshot_id=8744736658442914487,
         ) as writer:
             for entry in manifest_entries:
                 writer.add_entry(entry)
-            writer.close()
             new_manifest = writer.to_manifest_file()
+            with pytest.raises(RuntimeError):
+                writer.add_entry(manifest_entries[0])
+
+        expected_metadata = {
+            "schema": test_schema.json(),
+            "partition-spec": test_spec.json(),
+            "partition-spec-id": str(test_spec.spec_id),
+            "format-version": str(format_version),
+        }
+        if format_version == 2:
+            expected_metadata["content"] = "data"
+        _verify_metadata_with_fastavro(
+            tmp_avro_file,
+            expected_metadata,
+        )
         new_manifest_entries = new_manifest.fetch_manifest_entry(io)
 
         manifest_entry = new_manifest_entries[0]
 
         assert manifest_entry.status == ManifestEntryStatus.ADDED
         assert manifest_entry.snapshot_id == 8744736658442914487
-        # TODO: double-check this with java implementation
-        assert manifest_entry.data_sequence_number == -1
+        assert manifest_entry.data_sequence_number == 0 if format_version == 1 else 3
         assert isinstance(manifest_entry.data_file, DataFile)
 
         data_file = manifest_entry.data_file
@@ -453,14 +470,17 @@ def test_write_manifest_entry(generated_manifest_entry_file: str) -> None:
         assert data_file.sort_order_id == 0
 
 
-def test_write_manifest_list_v1(generated_manifest_file_file_v1: str) -> None:
+@pytest.mark.parametrize("format_version", [1, 2])
+def test_write_manifest_list(
+    generated_manifest_file_file_v1: str, generated_manifest_file_file_v2: str, format_version: int
+) -> None:
     io = load_file_io()
 
     snapshot = Snapshot(
         snapshot_id=25,
         parent_snapshot_id=19,
         timestamp_ms=1602638573590,
-        manifest_list=generated_manifest_file_file_v1,
+        manifest_list=generated_manifest_file_file_v1 if format_version == 1 else generated_manifest_file_file_v2,
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
@@ -470,19 +490,23 @@ def test_write_manifest_list_v1(generated_manifest_file_file_v1: str) -> None:
         path = tmp_dir + "/manifest-list.avro"
         output = io.new_output(path)
         with write_manifest_list(
-            format_version=1, output_file=output, snapshot_id=25, parent_snapshot_id=19, sequence_number=0
+            format_version=format_version, output_file=output, snapshot_id=25, parent_snapshot_id=19, sequence_number=0
         ) as writer:
             writer.add_manifests(demo_manifest_list)
         new_manifest_list = list(read_manifest_list(io.new_input(path)))
-        _verify_metadata_with_fastavro(path, {"snapshot-id": "25", "parent-snapshot-id": "19", "format-version": "1"})
+
+        expected_metadata = {"snapshot-id": "25", "parent-snapshot-id": "19", "format-version": str(format_version)}
+        if format_version == 2:
+            expected_metadata["sequence-number"] = "0"
+        _verify_metadata_with_fastavro(path, expected_metadata)
 
         manifest_file = new_manifest_list[0]
 
         assert manifest_file.manifest_length == 7989
         assert manifest_file.partition_spec_id == 0
-        assert manifest_file.content == ManifestContent.DATA
-        assert manifest_file.sequence_number == 0
-        assert manifest_file.min_sequence_number == 0
+        assert manifest_file.content == ManifestContent.DATA if format_version == 1 else ManifestContent.DELETES
+        assert manifest_file.sequence_number == 0 if format_version == 1 else 3
+        assert manifest_file.min_sequence_number == 0 if format_version == 1 else 3
         assert manifest_file.added_snapshot_id == 9182715666859759686
         assert manifest_file.added_files_count == 3
         assert manifest_file.existing_files_count == 0
@@ -509,71 +533,7 @@ def test_write_manifest_list_v1(generated_manifest_file_file_v1: str) -> None:
 
         entry = entries[0]
 
-        assert entry.data_sequence_number == 0
-        assert entry.file_sequence_number == 0
-        assert entry.snapshot_id == 8744736658442914487
-        assert entry.status == ManifestEntryStatus.ADDED
-
-
-def test_write_manifest_list_v2(generated_manifest_file_file_v2: str) -> None:
-    io = load_file_io()
-    snapshot = Snapshot(
-        snapshot_id=25,
-        parent_snapshot_id=19,
-        timestamp_ms=1602638573590,
-        manifest_list=generated_manifest_file_file_v2,
-        summary=Summary(Operation.APPEND),
-        schema_id=3,
-    )
-
-    demo_manifest_list = snapshot.manifests(io)
-
-    with TemporaryDirectory() as tmp_dir:
-        path = tmp_dir + "/manifest-list.avro"
-        output = io.new_output(path)
-        with write_manifest_list(
-            format_version=2, output_file=output, snapshot_id=25, parent_snapshot_id=19, sequence_number=0
-        ) as writer:
-            writer.add_manifests(demo_manifest_list)
-
-        new_manifest_list = list(read_manifest_list(io.new_input(path)))
-        _verify_metadata_with_fastavro(
-            path, {"snapshot-id": "25", "parent-snapshot-id": "19", "sequence-number": "0", "format-version": "2"}
-        )
-        manifest_file = new_manifest_list[0]
-
-        assert manifest_file.manifest_length == 7989
-        assert manifest_file.partition_spec_id == 0
-        assert manifest_file.content == ManifestContent.DELETES
-        assert manifest_file.sequence_number == 3
-        assert manifest_file.min_sequence_number == 3
-        assert manifest_file.added_snapshot_id == 9182715666859759686
-        assert manifest_file.added_files_count == 3
-        assert manifest_file.existing_files_count == 0
-        assert manifest_file.deleted_files_count == 0
-        assert manifest_file.added_rows_count == 237993
-        assert manifest_file.existing_rows_count == 0
-        assert manifest_file.deleted_rows_count == 0
-        assert manifest_file.key_metadata is None
-
-        assert isinstance(manifest_file.partitions, list)
-
-        partition = manifest_file.partitions[0]
-
-        assert isinstance(partition, PartitionFieldSummary)
-
-        assert partition.contains_null is True
-        assert partition.contains_nan is False
-        assert partition.lower_bound == b"\x01\x00\x00\x00"
-        assert partition.upper_bound == b"\x02\x00\x00\x00"
-
-        entries = manifest_file.fetch_manifest_entry(io)
-
-        assert isinstance(entries, list)
-
-        entry = entries[0]
-
-        assert entry.data_sequence_number == 3
-        assert entry.file_sequence_number == 3
+        assert entry.data_sequence_number == 0 if format_version == 1 else 3
+        assert entry.file_sequence_number == 0 if format_version == 1 else 3
         assert entry.snapshot_id == 8744736658442914487
         assert entry.status == ManifestEntryStatus.ADDED

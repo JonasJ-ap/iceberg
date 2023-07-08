@@ -33,6 +33,7 @@ from typing import (
 from pyiceberg import conversions
 from pyiceberg.avro.file import AvroFile, AvroOutputFile
 from pyiceberg.conversions import to_bytes
+from pyiceberg.exceptions import ValidationError
 from pyiceberg.io import FileIO, InputFile, OutputFile
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -513,13 +514,10 @@ class ManifestWriter(ABC):
     def content(self) -> ManifestContent:
         ...
 
-    def close(self) -> None:
-        if not self.closed:
-            self.closed = True
-
     def to_manifest_file(self) -> ManifestFile:
-        if not self.closed:
-            raise RuntimeError("Cannot build ManifestFile, writer is not closed")
+        """Returns the manifest file."""
+        # once the manifest file is generated, no more entries can be added
+        self.closed = True
         min_sequence_number = self._min_data_sequence_number or UNASSIGNED_SEQ
         return ManifestFile(
             manifest_path=self._output_file.location,
@@ -643,11 +641,13 @@ class ManifestListWriter(ABC):
         self._writer.__exit__(exc_type, exc_value, traceback)
         return
 
-    def add_manifests(self, manifest_files: List[ManifestFile]) -> ManifestListWriter:
-        self._writer.write_block(manifest_files)
-        return self
+    @abstractmethod
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        ...
 
-    # TODO: add prepare
+    def add_manifests(self, manifest_files: List[ManifestFile]) -> ManifestListWriter:
+        self._writer.write_block([self.prepare_manifest(manifest_file) for manifest_file in manifest_files])
+        return self
 
 
 class ManifestListWriterV1(ManifestListWriter):
@@ -655,6 +655,11 @@ class ManifestListWriterV1(ManifestListWriter):
         super().__init__(
             output_file, {"snapshot-id": str(snapshot_id), "parent-snapshot-id": str(parent_snapshot_id), "format-version": "1"}
         )
+
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        if manifest_file.content != ManifestContent.DATA:
+            raise ValidationError("Cannot store delete manifests in a v1 table")
+        return manifest_file
 
 
 class ManifestListWriterV2(ManifestListWriter):
@@ -668,6 +673,9 @@ class ManifestListWriterV2(ManifestListWriter):
                 "format-version": "2",
             },
         )
+
+    def prepare_manifest(self, manifest_file: ManifestFile) -> ManifestFile:
+        return manifest_file
 
 
 def write_manifest_list(
